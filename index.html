@@ -5,38 +5,50 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Đảo Đèn Lồng</title>
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f26; font-family: system-ui, sans-serif; color: #fbe9c8; }
+      :root { --text: #f5f1e6; --danger: #ff5a5f; --gold: #f2c14e; --panel: rgba(14, 20, 48, 0.78); }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1430; font-family: system-ui, sans-serif; color: var(--text); }
       #app { position: fixed; inset: 0; }
-      #hud { position: fixed; top: 12px; left: 12px; background: rgba(15, 10, 35, 0.72); border: 1px solid rgba(255, 190, 110, 0.35);
-             border-radius: 10px; padding: 10px 14px; font-size: 15px; line-height: 1.6; min-width: 210px; }
-      #hud .row { display: flex; justify-content: space-between; gap: 16px; }
-      #hud .label { color: #c9b8e8; }
-      #hud .val { font-weight: 600; color: #ffd28a; }
-      #hint { position: fixed; bottom: 54px; left: 50%; transform: translateX(-50%); background: rgba(15, 10, 35, 0.75);
-              padding: 6px 14px; border-radius: 8px; font-size: 15px; display: none; }
-      #help { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #c9b8e8;
-              background: rgba(15, 10, 35, 0.6); padding: 5px 12px; border-radius: 8px; white-space: nowrap; }
-      #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column;
-                 background: rgba(10, 6, 25, 0.62); text-align: center; }
-      #overlay h1 { font-size: 44px; margin: 0 0 8px; color: #ffcf7a; }
-      #overlay p { font-size: 18px; margin: 4px; }
-      #flash { position: fixed; inset: 0; background: rgba(120, 40, 160, 0.35); opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+      .hud { position: fixed; background: var(--panel); border: 1px solid rgba(242, 193, 78, 0.35); border-radius: 10px; padding: 6px 12px; font-weight: 600; }
+      #hud-flames { top: 12px; left: 12px; font-size: 22px; color: #ffb347; letter-spacing: 4px; }
+      #hud-clock { top: 12px; left: 50%; transform: translateX(-50%); font-size: 24px; min-width: 70px; text-align: center; }
+      #hud-clock.danger { color: var(--danger); animation: blink 0.8s steps(2) infinite; }
+      @keyframes blink { 50% { opacity: 0.35; } }
+      #hud-right { top: 12px; right: 12px; text-align: right; font-size: 16px; line-height: 1.5; }
+      #hud-right b { color: var(--gold); }
+      #hud-motes { bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px 8px; }
+      #hud-motes i { width: 16px; height: 16px; border-radius: 50%; background: rgba(255, 246, 194, 0.12); border: 1px solid rgba(255, 229, 138, 0.4); }
+      #hud-motes i.on { background: #fff6c2; box-shadow: 0 0 8px #ffe58a; }
+      #hud-cd { bottom: 14px; right: 12px; display: flex; gap: 8px; font-size: 13px; }
+      #hud-cd div { width: 64px; text-align: center; padding: 4px 0; border-radius: 8px; background: rgba(242, 193, 78, 0.18); }
+      #hud-cd div.wait { background: rgba(91, 95, 110, 0.5); color: #b9b4a8; }
+      #prompt { bottom: 56px; left: 50%; transform: translateX(-50%); display: none; }
+      #arrow { position: fixed; width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent;
+               border-bottom: 26px solid var(--gold); display: none; filter: drop-shadow(0 0 4px #000); }
+      #help { position: fixed; bottom: 46px; right: 12px; font-size: 12px; color: #c9c3b4; text-align: right; }
+      #screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column;
+                background: rgba(14, 20, 48, 0.78); text-align: center; padding: 20px; }
+      #screen h1 { font-size: 44px; margin: 0 0 10px; color: #ffb347; }
+      #screen p { font-size: 18px; margin: 6px; max-width: 640px; }
+      #screen button { margin: 5px; padding: 8px 20px; font-size: 16px; border-radius: 8px; border: 1px solid var(--gold);
+                       background: rgba(242, 193, 78, 0.15); color: var(--text); cursor: pointer; min-width: 220px; }
+      #screen label { display: block; margin: 8px; }
+      #flash { position: fixed; inset: 0; background: rgba(255, 90, 95, 0.3); opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+      #wind-warn { top: 56px; left: 50%; transform: translateX(-50%); display: none; color: #8fa3b8; }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <div id="flash"></div>
-    <div id="hud">
-      <div class="row"><span class="label">Lửa (máu)</span><span class="val" id="hud-flames"></span></div>
-      <div class="row"><span class="label">Đom đóm mang</span><span class="val" id="hud-carried"></span></div>
-      <div class="row"><span class="label">Đèn đã thắp</span><span class="val" id="hud-lanterns"></span></div>
-      <div class="row"><span class="label">Thời gian đêm</span><span class="val" id="hud-time"></span></div>
-      <div class="row"><span class="label">Điểm</span><span class="val" id="hud-score"></span></div>
-      <div class="row"><span class="label">Tỏa sáng (F)</span><span class="val" id="hud-pulse"></span></div>
-    </div>
-    <div id="hint"></div>
-    <div id="help">WASD: đi · ←/→ hoặc kéo chuột: xoay camera · Space: nhảy · E: nạp đèn · F: tỏa sáng · R: chơi lại</div>
-    <div id="overlay"><h1 id="ov-title"></h1><p id="ov-text"></p><p>Nhấn <b>R</b> để chơi lại</p></div>
+    <div class="hud" id="hud-flames"></div>
+    <div class="hud" id="hud-clock"></div>
+    <div class="hud" id="hud-right"></div>
+    <div class="hud" id="hud-motes"></div>
+    <div class="hud" id="hud-cd"><div id="cd-dash">Lướt</div><div id="cd-pulse">Tỏa sáng</div></div>
+    <div class="hud" id="prompt"></div>
+    <div class="hud" id="wind-warn">Lá bay... gió mạnh sắp tới!</div>
+    <div id="arrow"></div>
+    <div id="help">WASD đi · Chuột/←→ xoay · Space nhảy · Shift lướt · E nạp · F tỏa sáng · Esc/P tạm dừng</div>
+    <div id="screen"></div>
     <script type="module" src="/src/game/main.js"></script>
   </body>
 </html>
