@@ -27,15 +27,16 @@ function cli(args) {
 
 test('C1 game.contract.json có đủ trường và tuning', () => {
   for (const k of ['contract_version', 'team', 'build_cmd', 'run_cmd', 'headless_cmd', 'tuning']) assert.ok(k in contract, k);
-  assert.equal(contract.contract_version, '1.0');
-  const keys = [
-    'player_speed', 'carry_capacity', 'lantern_cost', 'lantern_count_night1', 'pickup_radius', 'interact_radius',
-    'pulse_cost', 'pulse_radius', 'night1_duration_s', 'flames', 'invuln_s', 'hit_drop_ratio', 'pulse_stun_s',
-    'pulse_push_m', 'pulse_cooldown_s', 'safe_radius', 'shade_speed', 'shade_hit_radius', 'fall_enabled', 'score',
-  ];
-  for (const k of keys) assert.ok(k in contract.tuning, k);
-  for (const k of ['per_mote', 'per_lantern', 'per_stun', 'per_second_left', 'per_flame_left']) assert.ok(k in contract.tuning.score, k);
-  assert.equal(contract.tuning.lantern_count_night1, 5);
+  // Ticket-02: contract v1.1, tuning phải khớp số chuẩn (Phần 1).
+  assert.equal(contract.contract_version, '1.1');
+  const standard = {
+    player_speed: 6, carry_capacity: 10, lantern_cost: 10, lantern_count_night1: 5, pickup_radius: 1, interact_radius: 2,
+    pulse_cost: 3, pulse_radius: 5, night1_duration_s: 300, flames: 3, invuln_s: 1.5, hit_drop_ratio: 0.5, pulse_stun_s: 2,
+    pulse_push_m: 4, pulse_cooldown_s: 3, safe_radius: 6, shade_speed: 4, shade_hit_radius: 1, fall_enabled: true,
+    dash_speed: 14, dash_duration_s: 0.2, dash_cooldown_s: 1.5, night2_duration_s: 330, night3_duration_s: 360,
+  };
+  for (const [k, v] of Object.entries(standard)) assert.equal(contract.tuning[k], v, k);
+  assert.deepEqual(contract.tuning.score, { per_mote: 10, per_lantern: 100, per_stun: 5, per_second_left: 2, per_flame_left: 50 });
 });
 
 test('C2 output: snapshot tick 0, snapshot mỗi 10 tick (mặc định), dòng cuối là end', () => {
@@ -44,9 +45,13 @@ test('C2 output: snapshot tick 0, snapshot mỗi 10 tick (mặc định), dòng 
   const snaps = r.lines.filter((l) => l.type === 'snapshot');
   assert.deepEqual(snaps.map((s) => s.tick), [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]);
   const s = snaps[1];
-  for (const k of ['tick', 'sim_tick', 'state', 'time_left_s', 'score', 'player', 'lanterns', 'shades', 'motes_active']) assert.ok(k in s, k);
-  assert.deepEqual(Object.keys(s.player), ['pos', 'flames', 'carried']);
+  const keys = ['tick', 'sim_tick', 'night', 'state', 'time_left_s', 'score', 'wind', 'player', 'lanterns', 'shades', 'motes_active', 'motes', 'drifters', 'charms'];
+  for (const k of keys) assert.ok(k in s, k);
+  assert.deepEqual(Object.keys(s.wind), ['active', 'dir_deg']);
+  assert.deepEqual(Object.keys(s.player), ['pos', 'vel', 'grounded', 'flames', 'carried', 'invuln', 'dash_cd_s', 'pulse_cd_s', 'charm_s']);
+  assert.deepEqual(Object.keys(s.motes[0]), ['id', 'pos', 'kind', 'ttl_s']);
   assert.equal(s.lanterns.length, 5);
+  assert.equal(r.lines[1].name, 'night_start');
   assert.deepEqual(r.lines.at(-1), { type: 'end', ticks: 95, state: 'playing', score: r.lines.at(-1).score });
   for (const l of r.lines) for (const v of JSON.stringify(l).match(/-?\d+\.\d+/g) || []) assert.ok(v.split('.')[1].length <= 3, v);
 });
@@ -86,7 +91,8 @@ test('C5 file inputs/scenario sai định dạng thì thoát mã 2 và báo lỗ
 });
 
 test('C6 tham số sai thì thoát mã khác 0', () => {
-  for (const args of [['--night', '1', '--ticks', '5'], ['--seed', '1', '--night', '2', '--ticks', '5'], ['--seed', 'x', '--night', '1', '--ticks', '5']]) {
+  // Ticket-02: --night nhận 1, 2, 3 nên dùng night 4 làm giá trị sai.
+  for (const args of [['--night', '1', '--ticks', '5'], ['--seed', '1', '--night', '4', '--ticks', '5'], ['--seed', 'x', '--night', '1', '--ticks', '5']]) {
     const r = cli(args);
     assert.notEqual(r.code, 0, args.join(' '));
   }
@@ -115,7 +121,18 @@ test('C7 ví dụ trên board (scenario + inputs mẫu) chạy được, sự ki
   });
   const r = cli(['--seed', '1', '--night', '1', '--scenario', sc, '--inputs', inp, '--ticks', '300']);
   assert.equal(r.code, 0, r.stderr);
-  const pulse = r.lines.find((l) => l.name === 'pulse');
-  assert.equal(pulse.tick, 201);
+  assert.equal(r.lines.find((l) => l.name === 'mote_picked').tick, 40);
   assert.equal(r.lines.find((l) => l.type === 'snapshot' && l.tick === 120).player.pos[2], 12);
+  // Ticket-02: pulse_cost = 3, Mây chỉ mang 1 đom đóm nên tỏa sáng không kích hoạt (Phase 1 có pulse ở tick 201).
+  assert.equal(r.lines.filter((l) => l.name === 'pulse').length, 0);
+});
+
+test('C8 --night 2 và 3 chạy được; một Đêm đầy đủ chạy xong <= 30 giây', () => {
+  for (const night of ['2', '3']) {
+    const t0 = Date.now();
+    const r = cli(['--seed', '9', '--night', night, '--ticks', '21600']);
+    assert.equal(r.code, 0, r.stderr);
+    assert.ok(Date.now() - t0 < 30000);
+    assert.equal(r.lines[0].night, Number(night));
+  }
 });
