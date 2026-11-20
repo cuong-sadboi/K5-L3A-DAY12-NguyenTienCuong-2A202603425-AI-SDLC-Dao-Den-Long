@@ -677,9 +677,9 @@ export function step(w, input) {
     w.wind.left = dec(w.wind.left);
     if (w.wind.left === 0) w.wind.active = false;
   }
-  // Ticket-03: bước 2 trừ dầu (hao + bị hút); ngay sau đó đèn có fuel <= 0 tắt.
+  // Ticket-03: bước 2 trừ dầu (hao + bị hút); ngay sau đó đèn có fuel <= 0 tắt. (Cảnh bench Ticket-04: tắt hao dầu.)
   for (const l of w.lanterns) {
-    if (!l.lit) continue;
+    if (!l.lit || w.bench) continue;
     const drainers = w.shades.filter((s) => s.state === 'drain' && s.target === l.id);
     l.fuelU -= Math.round(T.fuel_decay_per_s) + Math.round(T.drain_per_s) * drainers.length;
     for (const s of drainers) {
@@ -703,7 +703,7 @@ export function step(w, input) {
   if (p.fallWait === 0) movePlayer(w, input, E, ev);
 
   // 4. Nhặt đom đóm và bùa.
-  if (p.fallWait === 0) {
+  if (p.fallWait === 0 && !w.bench) {
     const kept = [];
     for (const m of w.motes) {
       if (p.carried < capacityOf(w) && distXZ(p.pos, m.pos) <= T.pickup_radius + EPS && Math.abs(p.pos[1] - m.pos[1]) < STD.pickupDy) {
@@ -829,7 +829,7 @@ export function step(w, input) {
   moveDrifters(w);
 
   // 9. Chạm: Gió Lạc cướp trước, rồi Bóng Mực gây hit (id tăng dần, tối đa 1 lần mỗi tick).
-  if (p.fallWait === 0) {
+  if (p.fallWait === 0 && !w.bench) {
     for (const d of w.drifters) {
       if (d.state === 'chase' && distXZ(d.pos, p.pos) <= STD.drifterHit + EPS) {
         const amount = Math.min(STD.drifterSteal, p.carried);
@@ -860,6 +860,7 @@ export function step(w, input) {
   }
 
   // 10. Sinh đom đóm, Bóng Mực, Gió Lạc, gió theo lịch (thực thể mới tương tác từ tick sau).
+  if (w.bench) return ev; // Cảnh bench (Ticket-04): không sinh thực thể, không xét kết thúc Đêm.
   if (w.randomMotes && st % STD.moteEvery === 0) {
     const randoms = w.motes.filter((m) => m.kind === 'random');
     if (randoms.length < STD.moteCap) {
@@ -949,4 +950,32 @@ export function snapshot(w) {
     drifters: w.drifters.map((d) => ({ id: d.id, pos: d.pos.map(round3), state: d.state, stolen: d.stolen })),
     charms: w.charms.map((c) => ({ id: c.id, available: c.available, respawn_s: round3(c.respawnLeft / TICK_RATE) })),
   };
+}
+
+// ---------- Cảnh benchmark chuẩn (Ticket-04) ----------
+// Đêm 1, đúng 200 Bóng Mực wander rải đều trên đảo và 100 đom đóm (theo seed), L1–L3 sáng với dầu 100.
+// Cảnh bench tắt sinh thực thể, sát thương, nhặt đom đóm, hao dầu và điều kiện kết thúc; Bóng Mực vẫn di chuyển theo luật.
+export function createBenchWorld(tuning, seed = 42) {
+  const lit = ['L1', 'L2', 'L3'].map((id) => ({ id, lit: true, fuel: tuning.fuel_max }));
+  const w = createWorld(tuning, {
+    seed,
+    night: 1,
+    scenario: { random_motes: false, random_shades: false, random_drifters: false, wind_enabled: false, lanterns: lit },
+  });
+  w.bench = true;
+  const rng = createRng(seed);
+  const spot = () => {
+    const a = rng() * Math.PI * 2;
+    const r = Math.sqrt(rng()) * 38;
+    return [Math.cos(a) * r, Math.sin(a) * r];
+  };
+  for (let i = 0; i < 200; i++) {
+    const [x, z] = spot();
+    w.shades.push(makeShade('S' + (i + 1), [x, STD.shadeHover, z], 'wander'));
+  }
+  for (let i = 0; i < 100; i++) {
+    const [x, z] = spot();
+    addMote(w, [x, 0, z]);
+  }
+  return w;
 }

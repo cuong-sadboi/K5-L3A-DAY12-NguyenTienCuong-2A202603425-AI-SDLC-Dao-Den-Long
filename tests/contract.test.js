@@ -27,8 +27,10 @@ function cli(args) {
 
 test('C1 game.contract.json có đủ trường và tuning', () => {
   for (const k of ['contract_version', 'team', 'build_cmd', 'run_cmd', 'headless_cmd', 'tuning']) assert.ok(k in contract, k);
-  // Ticket-02: tuning khớp số chuẩn. Ticket-03: contract v1.2, thời gian Đêm 240/270/300, thêm khóa dầu/thắng, điểm mới.
-  assert.equal(contract.contract_version, '1.2');
+  // Ticket-02: tuning khớp số chuẩn. Ticket-03: thời gian Đêm 240/270/300, khóa dầu/thắng, điểm mới.
+  // Ticket-04: contract v1.3 thêm bench_cmd và soak_cmd, mọi yêu cầu v1.0–v1.2 giữ nguyên.
+  assert.equal(contract.contract_version, '1.3');
+  for (const k of ['bench_cmd', 'soak_cmd']) assert.equal(typeof contract[k], 'string', k);
   const standard = {
     player_speed: 6, carry_capacity: 10, lantern_cost: 10, lantern_count_night1: 5, pickup_radius: 1, interact_radius: 2,
     pulse_cost: 3, pulse_radius: 5, night1_duration_s: 240, flames: 3, invuln_s: 1.5, hit_drop_ratio: 0.5, pulse_stun_s: 2,

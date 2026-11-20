@@ -6,3 +6,6 @@ dist/
 tmp/
 docs/proof/*/out/determinism-*.jsonl
 docs/proof/*/out/bad*
+data/
+bench-*.json
+release/
