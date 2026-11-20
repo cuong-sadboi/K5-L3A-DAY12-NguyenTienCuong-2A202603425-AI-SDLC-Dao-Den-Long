@@ -1,5 +1,16 @@
 # Changelog
 
+## phase-4 — v1.0.0, Test Contract v1.3 (Ticket-04 "Bình minh: phát hành v1.0.0")
+
+- `game.contract.json`: `contract_version` "1.3", thêm `bench_cmd` (`node scripts/bench.js`) và `soak_cmd` (`node --expose-gc src/soak.js`).
+- Đổi `build_cmd` thành `npm ci && npm run build`, đổi `run_cmd` thành `node scripts/run.js` (để hỗ trợ `--export-leaderboard`). Mọi yêu cầu v1.0–v1.2 giữ nguyên.
+- Benchmark: cảnh chuẩn 200 Bóng Mực, 100 đom đóm, camera bay vòng; ghi `bench.json` (`peak_mem_mb` = null vì bản web không đo được bộ nhớ tiến trình).
+- Soak test: 10 Đêm trong một tiến trình, input ngẫu nhiên theo seed, ghi `soak.json`.
+- Bảng xếp hạng cục bộ top 10 (lưu trên đĩa qua máy chủ dev, lệnh xuất JSON).
+- Dễ tiếp cận: đổi phím có báo trùng, phụ đề và báo hình ảnh, giảm chuyển động, chữ tối thiểu 18 px và chữ lớn.
+- Hiệu năng: vẽ Bóng Mực và đom đóm theo lô (instancing).
+- Thêm LICENSE (MIT); CREDITS ghi đủ nguồn.
+
 ## phase-3 — Test Contract v1.2 (Ticket-03 "Đèn cạn dầu")
 
 ### Thay đổi phá vỡ tương thích

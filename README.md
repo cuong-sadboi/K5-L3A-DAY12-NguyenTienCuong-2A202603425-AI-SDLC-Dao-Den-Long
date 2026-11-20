@@ -1,21 +1,32 @@
-# Đảo Đèn Lồng
+# Đảo Đèn Lồng — v1.0.0
 
-> Video demo: sẽ thêm ở Phase 4 (Release `v1.0.0`).
+> **Video demo:** đính kèm ở [Release v1.0.0](https://github.com/cuong-sadboi/K5-L3A-DAY12-NguyenTienCuong-2A202603425-AI-SDLC-Dao-Den-Long/releases/tag/v1.0.0) (file `demo.mp4`).
 
-Game 3D góc nhìn thứ ba. Mây, người giữ đèn nhỏ tuổi, gom đom đóm để thắp lại các Đèn Lồng Lớn trên ba hòn đảo (Đảo Bến, Đảo Cau, Đảo Chuông), né Bóng Mực và Gió Lạc trong sương đen.
+![Đêm 2 — Đảo Cau dưới ánh trăng](docs/proof/phase-4/img/04-dem2-canh.jpg)
+
+Game 3D góc nhìn thứ ba. Mây, người giữ đèn nhỏ tuổi, gom đom đóm để giữ các Đèn Lồng Lớn sáng tới bình minh trên ba hòn đảo (Đảo Bến, Đảo Cau, Đảo Chuông), né Bóng Mực và Gió Lạc trong sương đen.
 Bài lab cá nhân Day 12 AI SDLC — Nguyễn Tiến Cường (2A202603425). Tài liệu lab gốc: [docs/lab/](docs/lab/README.md).
 
-## Cài đặt và chạy
+## Yêu cầu hệ thống
 
-Cần Node >= 20 (macOS, Linux hoặc Windows).
+- **Node.js ≥ 20.** Chạy được trên macOS, Linux và Windows; CI kiểm trên ubuntu và macOS.
+- **Trình duyệt hỗ trợ WebGL2** (Chrome, Edge, Firefox, Safari bản mới).
+- **Benchmark** cần một trình duyệt nhân Chromium đã cài sẵn (Chrome, Edge hoặc Chromium). Nếu trình duyệt không nằm ở chỗ quen thuộc, đặt đường dẫn qua biến `BENCH_BROWSER`.
+
+## Cài đặt và chạy (3 lệnh)
 
 ```bash
-npm ci          # cài đặt
-npm run dev     # mở game trong trình duyệt (http://localhost:5173)
-npm test        # chạy toàn bộ test
+git clone https://github.com/cuong-sadboi/K5-L3A-DAY12-NguyenTienCuong-2A202603425-AI-SDLC-Dao-Den-Long.git && cd K5-L3A-DAY12-NguyenTienCuong-2A202603425-AI-SDLC-Dao-Den-Long
+npm ci
+npm start       # mở game trong trình duyệt (http://localhost:5173)
 ```
 
-## Điều khiển
+**Bản phát hành** (không cần cài Node):
+1. Tải `dao-den-long-v1.0.0-web.zip` ở Release `v1.0.0` và giải nén.
+2. Phục vụ thư mục bằng một máy chủ tĩnh bất kỳ, ví dụ `python3 -m http.server 8080` rồi mở http://localhost:8080. Trình duyệt không cho chạy module từ `file://`, nên không mở trực tiếp file được.
+3. Ở bản tĩnh, bảng xếp hạng lưu trong `localStorage` của trình duyệt.
+
+## Điều khiển (đổi phím trong Cài đặt → Đổi phím)
 
 | Phím | Việc |
 |---|---|
@@ -60,13 +71,41 @@ Số tinh chỉnh nằm ở `tuning` trong [game.contract.json](game.contract.js
   - Tổng điểm là tổng các Đêm đã thắng.
 - **Cài đặt "Bảng màu dễ phân biệt"** (Esc → Cài đặt): Bóng Mực viền xanh #00B3FF, cảnh báo màu trắng kèm ⚠; đèn tắt luôn xẹp và rách nên không cần màu để phân biệt.
 
-## Chế độ headless (Test Contract v1.2)
+## Benchmark, soak test và bảng xếp hạng (Ticket-04)
+
+```bash
+node scripts/bench.js --seed 42 --duration 30 --out bench.json      # bench_cmd
+node --expose-gc src/soak.js --seed 7 --nights 10 --out soak.json   # soak_cmd
+node scripts/run.js --export-leaderboard out.json                   # run_cmd + xuất bảng xếp hạng
+```
+
+- **Benchmark:**
+  - Script phục vụ thư mục `dist/` (tự build nếu chưa có), rồi mở trình duyệt nhân Chromium ở cửa sổ 1280×720 với profile tạm và cờ tắt vsync (`--disable-gpu-vsync --disable-frame-rate-limit`).
+  - Trang chạy cảnh chuẩn: Đêm 1, 200 Bóng Mực, 100 đom đóm, L1–L3 sáng, camera bay vòng 15 giây một vòng. Khởi động 3 giây rồi đo đúng `--duration` giây.
+  - Hiệu ứng trang trí sáng tạo (sương trôi, đom đóm trang trí) tắt trong cảnh này.
+  - `peak_mem_mb` = `null`, vì game chạy trong trình duyệt nhiều tiến trình nên không đo được RSS của riêng nó.
+  - Kết quả trên máy tôi (Intel i5-11300H, GPU tích hợp Iris Xe, Windows 11, Chrome 157): avg 163,2 fps, p1_low 58,7 fps, load 1.053 ms. Xem [docs/proof/phase-4/bench.json](docs/proof/phase-4/bench.json).
+- **Soak:** 10 Đêm liên tiếp trong cùng một tiến trình, xoay vòng Đêm 1 → 2 → 3. Đêm thứ i (đếm từ 0) dùng seed + i, input ngẫu nhiên theo seed. Kết quả: 0 crash, bộ nhớ 51,4 → 58,2 MB. Xem [docs/proof/phase-4/soak.json](docs/proof/phase-4/soak.json).
+- **Bảng xếp hạng:**
+  - Sau màn Bình Minh, hoặc khi thua ở bất kỳ Đêm nào, nhập tên 3–12 ký tự (chữ, số, `_`; nhận cả chữ tiếng Việt có dấu) để lưu điểm.
+  - Giữ top 10, điểm giảm dần; bằng điểm thì ai đạt trước đứng trên.
+  - Khi chạy bằng `npm start`, điểm lưu trên đĩa ở `data/leaderboard.json`; màn "Bảng xếp hạng" mở từ menu chính.
+
+## Dễ tiếp cận
+
+- **Đổi phím** cho mọi hành động, có báo trùng phím và nút "Khôi phục mặc định". Cài đặt được lưu.
+- **Phụ đề và báo hình ảnh:** Bóng Mực xuất hiện (kèm mũi tên ở mép màn hình), gió mạnh sắp thổi, 10 giây cuối, đèn sắp hết dầu hoặc đã tắt.
+- **Giảm chuyển động:** tắt chớp màn hình khi bị đánh (game không có rung camera).
+- **Chữ:** chữ giao diện tối thiểu 18 px ở 1280×720, có tùy chọn chữ lớn ×1,25.
+- **Bảng màu dễ phân biệt:** từ Phase 3.
+
+## Chế độ headless (Test Contract v1.3)
 
 ```bash
 node src/headless.js --seed 1 --night 1 --ticks 600 --out out.jsonl [--scenario s.json] [--inputs i.json] [--snapshot-every 10]
 ```
 
-- **Khai báo:** `game.contract.json` ở gốc repo: `build_cmd` = `npm ci`, `run_cmd` = `npm run dev`, `headless_cmd` = `node src/headless.js`.
+- **Khai báo:** `game.contract.json` ở gốc repo: `build_cmd` = `npm ci && npm run build`, `run_cmd` = `node scripts/run.js`, `headless_cmd` = `node src/headless.js`, `bench_cmd` = `node scripts/bench.js`, `soak_cmd` = `node --expose-gc src/soak.js`.
 - **Yêu cầu chạy:** headless chỉ cần Node, không cần cửa sổ hay GPU. `--night` nhận 1, 2, 3.
 - **Tốc độ:** một Đêm đầy đủ (21.600 tick) chạy khoảng 0,3–0,45 s.
 - **Mã thoát:** 0 khi chạy xong; 2 khi file inputs/scenario sai định dạng; 1 cho các lỗi khác.
@@ -74,7 +113,8 @@ node src/headless.js --seed 1 --night 1 --ticks 600 --out out.jsonl [--scenario 
 
 ## Kiểm chứng
 
-- `npm test`: 48 test, gồm contract, luật chơi Phase 1–2 (cập nhật theo luật mới, có ghi chú `Ticket-N:`), tính năng Phase 2 và luật dầu đèn Phase 3.
+- `npm test`: 53 test, gồm contract, luật chơi Phase 1–2 (cập nhật theo luật mới, có ghi chú `Ticket-N:`), tính năng Phase 2, luật dầu đèn Phase 3, bảng xếp hạng, soak và cảnh bench Phase 4.
+- Bằng chứng Phase 4: [docs/proof/phase-4/README.md](docs/proof/phase-4/README.md). Retro cả dự án: [docs/notes/retro.md](docs/notes/retro.md).
 - `node scripts/verify.js phase-N`: chạy test, các scenario trong `docs/proof/phase-N/scenarios`, kiểm tra tất định và mã thoát.
 - Bằng chứng: [Phase 1](docs/proof/phase-1/README.md), [Phase 2](docs/proof/phase-2/README.md), [Phase 3](docs/proof/phase-3/README.md).
 - Quyết định thiết kế: [docs/adr/](docs/adr/0001-den-co-dau-va-thang-luc-binh-minh.md). Thay đổi phá vỡ tương thích: [CHANGELOG.md](CHANGELOG.md).

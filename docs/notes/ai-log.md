@@ -60,3 +60,26 @@ Công cụ: Claude Code (ứng dụng desktop), model Claude Opus 5.5, gói Pro.
 - Skill `verify`.
 - CI trên ubuntu và macOS.
 - `CLAUDE.md` cập nhật cho contract v1.1 và quy tắc ghi chú `Ticket-N:`.
+
+## Phase 3 (Ticket-03 "Đèn cạn dầu")
+
+**Cách làm:**
+- AI đọc ticket bằng khoảng 20 ảnh chụp nhỏ, sửa `core.js` theo từng luật bị thay, sửa 5 test cũ kèm ghi chú `Ticket-03:`, thêm 8 test mới.
+- Viết ADR và CHANGELOG theo DoD.
+- Từ lúc ticket ra tới lúc gắn tag mất khoảng 10 phút.
+
+**AI sai:** bản vá dùng `node -e` trong bash làm hỏng template string. Phát hiện bằng build. Đã chuyển sang ghi bản vá ra file.
+
+**Token:** ngữ cảnh khoảng 680k sau Phase 3.
+
+## Phase 4 (Ticket-04 "Bình minh: phát hành v1.0.0")
+
+**Cách làm:**
+- Ưu tiên phần chấm tự động trước: soak, benchmark, lệnh xuất bảng xếp hạng. Sau đó tới dễ tiếp cận và tài liệu.
+
+**AI sai hoặc bị chặn:**
+- **Cài Playwright và tải Chromium bị trình phân loại quyền chặn.** Đổi sang dùng trình duyệt có sẵn trên máy, không tải file thực thi nào.
+- **Plugin Vite làm máy chủ dev sập.** Phát hiện qua stack trace khi khởi động lại.
+- **Mô hình Bóng Mực quá nặng cho 200 con.** Chuyển sang vẽ theo lô trước khi chạy bench.
+
+**Token:** ngữ cảnh khoảng 830k giữa Phase 4; hạn mức 5 giờ 66%, hạn mức tuần 55% (gói Pro).

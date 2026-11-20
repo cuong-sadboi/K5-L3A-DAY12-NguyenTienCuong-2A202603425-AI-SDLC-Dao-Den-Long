@@ -1,7 +1,7 @@
 # Đảo Đèn Lồng — hướng dẫn cho agent
 
 Game 3D góc nhìn thứ ba (lab Day 12 AI SDLC). Yêu cầu và giả định từng phase: `docs/notes/phase-N.md`. Tài liệu lab gốc: `docs/lab/`.
-Contract hiện tại: **v1.2** (Ticket-03 "Đèn cạn dầu"): đèn có dầu, Bóng Mực `drain`, thắng lúc bình minh. Quyết định thiết kế ghi ở `docs/adr/`, thay đổi phá vỡ tương thích ghi ở `CHANGELOG.md`.
+Contract hiện tại: **v1.3** (Ticket-04, v1.0.0): v1.2 + `bench_cmd`, `soak_cmd`, `run_cmd --export-leaderboard`. Quyết định thiết kế ghi ở `docs/adr/`, thay đổi phá vỡ tương thích ghi ở `CHANGELOG.md`.
 
 ## Lệnh
 - Cài: `npm ci` (Node >= 20)
@@ -9,6 +9,9 @@ Contract hiện tại: **v1.2** (Ticket-03 "Đèn cạn dầu"): đèn có dầu
 - Test: `npm test` (node:test)
 - Headless: `node src/headless.js --seed 1 --night 1..3 --ticks 600 --out tmp/out.jsonl [--scenario f.json] [--inputs f.json]`
 - Bằng chứng: dùng skill `verify` (`node scripts/verify.js phase-N`)
+- Benchmark: `node scripts/bench.js --seed 42 --duration 30 --out bench.json` (mở Chrome/Edge có sẵn; `BENCH_BROWSER` để chỉ đường dẫn)
+- Soak: `node --expose-gc src/soak.js --seed 7 --nights 10 --out soak.json`
+- Xuất bảng xếp hạng: `node scripts/run.js --export-leaderboard out.json`
 
 ## Cấu trúc
 - `src/sim/core.js`: logic thuần, gồm `STD` (hằng số chuẩn), `NIGHTS` (bản đồ chuẩn) và `step()` theo đúng 12 bước của ticket. Không DOM, không `fs`, không `Math.random`/`Date.now`.
