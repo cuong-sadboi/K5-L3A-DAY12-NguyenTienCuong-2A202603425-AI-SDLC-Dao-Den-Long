@@ -1,0 +1,32 @@
+✔ C1 game.contract.json có đủ trường và tuning (5.5633ms)
+✔ C2 output: snapshot tick 0, snapshot mỗi 10 tick (mặc định), dòng cuối là end (198.4925ms)
+✔ C3 --snapshot-every 1 cho N+1 snapshot; dừng sớm khi game kết thúc (252.884ms)
+✔ C4 tất định: cùng seed giống hệt từng byte, khác seed thì khác (420.5302ms)
+✔ C5 file inputs/scenario sai định dạng thì thoát mã 2 và báo lỗi ra stderr (661.7327ms)
+✔ C6 tham số sai thì thoát mã khác 0 (360.1262ms)
+✔ C7 ví dụ trên board (scenario + inputs mẫu) chạy được, sự kiện ghi tick = k+1 (97.1386ms)
+✔ R1 di chuyển: move [0,1] trong 1 giây đi đúng player_speed theo +Z (19.395ms)
+✔ R2 cam_yaw_deg 90: move [0,1] đi theo +X (4.3905ms)
+✔ R3 vector dài hơn 1 được chuẩn hóa; frame giữ giá trị cũ khi vắng trường (1.8827ms)
+✔ R4 nhặt đom đóm tự động khi khoảng cách <= pickup_radius (6.0675ms)
+✔ R5 không mang quá carry_capacity (1.4211ms)
+✔ R6 nạp đèn trong interact_radius: deposit + lantern_lit + điểm (0.6546ms)
+✔ R7 nạp một phần thì chưa thắp; ngoài interact_radius thì không nạp (0.5005ms)
+✔ R8 thắp đèn cuối cùng thì thắng (all_lit), cộng điểm thời gian và flame còn lại (0.4158ms)
+✔ R9 dựng scenario không phát sự kiện và không cộng điểm (2.4139ms)
+✔ R10 Bóng Mực đuổi theo, chạm (<= shade_hit_radius) thì mất 1 flame (11.4811ms)
+✔ R11 bất tử invuln_s sau khi bị chạm; hết flame thì thua no_flames (10.2822ms)
+✔ R12 tỏa sáng: tốn pulse_cost, choáng + đẩy Bóng Mực trong pulse_radius, cộng per_stun (16.5739ms)
+✔ R13 tỏa sáng kích hoạt theo cạnh false->true, tôn trọng hồi chiêu và chi phí (12.0096ms)
+✔ R14 Bóng Mực không vào được safe_radius quanh đèn (27.0631ms)
+✔ R15 time_left_s giảm theo số bước; hết giờ thì thua dawn (3.2849ms)
+✔ R16 scenario: shades [] thay danh sách; random_shades mặc định vẫn sinh thêm (shade_spawned) (22.7537ms)
+✔ R17 nhảy chỉ đổi độ cao, không đổi vị trí XZ (5.6863ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2527.9347

@@ -1,0 +1,6 @@
+{
+  "random_motes": false,
+  "random_shades": false,
+  "shades": [{ "id": "S1", "pos": [10, 1, 0] }],
+  "lanterns": [{ "id": "L1", "pos": [0, 0, 60] }, { "id": "L2", "pos": [60, 0, 60] }, { "id": "L5", "pos": [-60, 0, 60] }]
+}

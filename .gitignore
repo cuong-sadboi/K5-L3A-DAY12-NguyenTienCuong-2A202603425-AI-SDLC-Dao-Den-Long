@@ -4,3 +4,5 @@ dist/
 .env.*
 *.log
 tmp/
+docs/proof/*/out/determinism-*.jsonl
+docs/proof/*/out/bad*
