@@ -8,7 +8,7 @@ const isVec3 = (v) => Array.isArray(v) && v.length === 3 && v.every(isNum);
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const isTicks = (v) => Number.isInteger(v) && v >= 0;
 const BUTTONS = ['jump', 'interact', 'pulse', 'dash', 'pause'];
-const SHADE_STATES = ['spawning', 'wander', 'chase', 'recoil', 'stunned'];
+const SHADE_STATES = ['spawning', 'wander', 'chase', 'recoil', 'stunned', 'drain'];
 const DRIFTER_STATES = ['idle', 'chase', 'flee', 'removed'];
 
 export function validateInputs(obj) {
@@ -41,7 +41,7 @@ export function validateScenario(obj, lanternIds) {
     const p = obj.player;
     if (!isObj(p)) bad('player phải là object');
     if ('pos' in p && !isVec3(p.pos)) bad('player.pos phải là [x, y, z]');
-    for (const k of ['carried', 'flames', 'invuln_ticks', 'dash_cd_ticks', 'pulse_cd_ticks', 'charm_ticks']) {
+    for (const k of ['carried', 'flames', 'invuln_ticks', 'dash_cd_ticks', 'pulse_cd_ticks', 'charm_ticks', 'successful_lights']) {
       if (k in p && !isTicks(p[k])) bad(`player.${k} phải là số nguyên >= 0`);
     }
   }
@@ -62,6 +62,7 @@ export function validateScenario(obj, lanternIds) {
       if ('id' in s && typeof s.id !== 'string') bad(`shades[${i}].id phải là chuỗi`);
       if ('state' in s && !SHADE_STATES.includes(s.state)) bad(`shades[${i}].state không hợp lệ`);
       if ('state_ticks_left' in s && !isTicks(s.state_ticks_left)) bad(`shades[${i}].state_ticks_left phải là số nguyên >= 0`);
+      if ('target_lantern_id' in s && !lanternIds.includes(s.target_lantern_id)) bad(`shades[${i}].target_lantern_id không hợp lệ`);
     });
   }
   if ('drifters' in obj) {
@@ -87,6 +88,8 @@ export function validateScenario(obj, lanternIds) {
       if ('pos' in l && !isVec3(l.pos)) bad(`lanterns[${i}].pos phải là [x, y, z]`);
       if ('lit' in l && typeof l.lit !== 'boolean') bad(`lanterns[${i}].lit phải là boolean`);
       if ('deposited' in l && !isTicks(l.deposited)) bad(`lanterns[${i}].deposited phải là số nguyên >= 0`);
+      if ('fuel' in l && (!isNum(l.fuel) || l.fuel < 0)) bad(`lanterns[${i}].fuel phải là số >= 0`);
+      if ('ever_lit' in l && typeof l.ever_lit !== 'boolean') bad(`lanterns[${i}].ever_lit phải là boolean`);
     });
   }
   if ('time_left_s' in obj && (!isNum(obj.time_left_s) || obj.time_left_s < 0)) bad('time_left_s phải là số >= 0');
