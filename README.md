@@ -20,12 +20,15 @@ npm test        # chạy toàn bộ test
 | Phím | Việc |
 |---|---|
 | W A S D | Đi |
-| Kéo chuột hoặc ← / → | Xoay camera (độ nhạy chỉnh trong Cài đặt) |
+| Chuột | Nhìn quanh kiểu FPS: nhấp vào màn hình để khóa chuột, di chuyển chuột để xoay và nghiêng camera (độ nhạy chỉnh trong Cài đặt) |
+| Esc | Thả chuột và mở menu tạm dừng |
+| Lăn chuột | Kéo camera gần/xa |
+| ← / → | Xoay camera bằng bàn phím |
 | Space | Nhảy |
 | Shift | Lướt |
 | E | Nạp đom đóm vào đèn (đứng gần đèn) |
 | F | Tỏa sáng |
-| Esc hoặc P | Tạm dừng (Tiếp tục / Chơi lại Đêm / Cài đặt / Về menu) |
+| P (hoặc Esc khi chưa khóa chuột) | Tạm dừng (Tiếp tục / Chơi lại Đêm / Cài đặt / Về menu) |
 | Enter | Chọn nút chính ở menu và màn kết quả |
 
 ## Luật chơi và cách tính điểm (Ticket-02 + Ticket-03 "Đèn cạn dầu")

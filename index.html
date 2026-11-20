@@ -33,6 +33,7 @@
                        background: rgba(242, 193, 78, 0.15); color: var(--text); cursor: pointer; min-width: 220px; }
       #screen label { display: block; margin: 8px; }
       #flash { position: fixed; inset: 0; background: rgba(255, 90, 95, 0.3); opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+      #lock-hint { top: 50%; left: 50%; transform: translate(-50%, -50%); display: none; font-size: 16px; pointer-events: none; }
       #wind-warn { top: 56px; left: 50%; transform: translateX(-50%); display: none; color: #8fa3b8; }
     </style>
   </head>
@@ -46,8 +47,9 @@
     <div class="hud" id="hud-cd"><div id="cd-dash">Lướt</div><div id="cd-pulse">Tỏa sáng</div></div>
     <div class="hud" id="prompt"></div>
     <div class="hud" id="wind-warn">Lá bay... gió mạnh sắp tới!</div>
+    <div class="hud" id="lock-hint">Nhấp vào màn hình để nhìn bằng chuột · Esc để thả chuột</div>
     <div id="arrow"></div>
-    <div id="help">WASD đi · Chuột/←→ xoay · Space nhảy · Shift lướt · E nạp · F tỏa sáng · Esc/P tạm dừng</div>
+    <div id="help">Chuột: nhìn (nhấp để khóa, Esc để thả) · Lăn chuột: gần/xa · WASD đi · Space nhảy · Shift lướt · E nạp · F tỏa sáng · P tạm dừng</div>
     <div id="screen"></div>
     <script type="module" src="/src/game/main.js"></script>
   </body>

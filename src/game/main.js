@@ -171,9 +171,11 @@ function startNight(n) {
   camYaw = 0;
   mode = 'play';
   hideScreen();
+  lockPointer();
 }
 
 function showScreen(html, buttons = []) {
+  releasePointer();
   const el = $('screen');
   el.innerHTML = html;
   for (const [label, fn] of buttons) {
@@ -232,7 +234,7 @@ function showSettings(back) {
 }
 function showPause() {
   showScreen('<h1>Tạm dừng</h1>', [
-    ['Tiếp tục (Esc/P)', () => (pauseTap = true)],
+    ['Tiếp tục (Esc/P)', () => ((pauseTap = true), lockPointer())],
     ['Chơi lại Đêm', () => startNight(night)],
     ['Cài đặt', () => showSettings(showPause)],
     ['Về menu', showMenu],
@@ -268,26 +270,76 @@ function onGameOver(data) {
 const keys = new Set();
 const tapped = new Set();
 let camYaw = 0;
+let camPitch = 22;
+let camDist = 8.5;
 let pauseTap = false;
+
+// Khóa con trỏ chuột kiểu FPS: nhấp vào màn hình để khóa, di chuyển chuột là xoay hướng nhìn,
+// Esc để thả chuột (đồng thời mở menu tạm dừng như ticket yêu cầu).
+const canvas = renderer.domElement;
+let locked = false;
+let releasingForUI = false;
+let lastUnlock = 0;
+let lockAskedAt = 0;
+function lockPointer() {
+  if (locked || !canvas.requestPointerLock) return;
+  // Chỉ xin khóa khi đang có thao tác của người chơi (nhấp/phím); xin lúc tải trang sẽ bị từ chối.
+  if (navigator.userActivation && !navigator.userActivation.isActive) return;
+  lockAskedAt = performance.now();
+  try {
+    const r = canvas.requestPointerLock();
+    if (r && r.catch) r.catch(() => {});
+  } catch {}
+}
+function releasePointer() {
+  if (!locked) return;
+  releasingForUI = true;
+  document.exitPointerLock();
+}
+const playing = () => mode === 'play' && world && world.state === 'playing';
+document.addEventListener('pointerlockchange', () => {
+  locked = document.pointerLockElement === canvas;
+  if (!locked) {
+    lastUnlock = performance.now();
+    if (!releasingForUI && playing()) pauseTap = true;
+    releasingForUI = false;
+  }
+});
+canvas.addEventListener('click', () => {
+  if (playing()) lockPointer();
+});
+// Trình duyệt từ chối khóa chuột (ví dụ trang nhúng): báo cho người chơi và dùng kéo chuột thay thế.
+document.addEventListener('pointerlockerror', () => {
+  if (performance.now() - lockAskedAt < 1500) $('lock-hint').textContent = 'Trình duyệt không cho khóa chuột: giữ chuột trái và kéo để nhìn';
+});
 window.addEventListener('keydown', (e) => {
   initAudio();
   keys.add(e.code);
   tapped.add(e.code);
-  if ((e.code === 'Escape' || e.code === 'KeyP') && mode === 'play') pauseTap = true;
+  if ((e.code === 'Escape' || e.code === 'KeyP') && mode === 'play') {
+    // Esc vừa thả chuột thì pointerlockchange đã xin tạm dừng; bỏ qua để không bật/tắt hai lần.
+    const justUnlocked = e.code === 'Escape' && performance.now() - lastUnlock < 400;
+    if (!justUnlocked) {
+      const resuming = world && world.state === 'paused';
+      pauseTap = true;
+      if (resuming) lockPointer();
+      else releasePointer();
+    }
+  }
   if (e.code === 'Enter' && primaryAction && mode !== 'play') primaryAction();
   if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
+// Nếu trình duyệt không cho khóa chuột thì vẫn kéo chuột để xoay như trước.
 let dragging = false;
-renderer.domElement.addEventListener('pointerdown', () => (dragging = true));
+canvas.addEventListener('pointerdown', () => (dragging = !locked));
 window.addEventListener('pointerup', () => (dragging = false));
-let camPitch = 22;
-let camDist = 8.5;
-window.addEventListener('pointermove', (e) => {
-  if (!dragging) return;
-  camYaw -= e.movementX * 0.3 * settings.sensitivity;
-  camPitch = Math.min(65, Math.max(6, camPitch + e.movementY * 0.2 * settings.sensitivity));
+window.addEventListener('mousemove', (e) => {
+  if (!locked && !dragging) return;
+  const k = locked ? 0.12 : 0.3;
+  camYaw -= e.movementX * k * settings.sensitivity;
+  camPitch = Math.min(65, Math.max(6, camPitch + e.movementY * k * 0.7 * settings.sensitivity));
 });
 window.addEventListener('wheel', (e) => (camDist = Math.min(14, Math.max(4.5, camDist + e.deltaY * 0.01))), { passive: true });
 function readInput(dt) {
@@ -459,6 +511,7 @@ function sync(time, dt) {
   }
   $('prompt').textContent = prompt;
   $('prompt').style.display = prompt && mode === 'play' ? 'block' : 'none';
+  $('lock-hint').style.display = playing() && !locked ? 'block' : 'none';
   // Mũi tên chỉ tới đèn chưa sáng gần nhất khi nó ở ngoài màn hình.
   const arrow = $('arrow');
   arrow.style.display = 'none';
