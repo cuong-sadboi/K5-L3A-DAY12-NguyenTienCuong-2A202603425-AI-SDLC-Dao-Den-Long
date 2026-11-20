@@ -1,7 +1,7 @@
 # Đảo Đèn Lồng — hướng dẫn cho agent
 
 Game 3D góc nhìn thứ ba (lab Day 12 AI SDLC). Yêu cầu và giả định từng phase: `docs/notes/phase-N.md`. Tài liệu lab gốc: `docs/lab/`.
-Contract hiện tại: **v1.1** (Ticket-02), gồm 3 Đêm, số chuẩn và thứ tự xử lý trong một tick theo ticket.
+Contract hiện tại: **v1.2** (Ticket-03 "Đèn cạn dầu"): đèn có dầu, Bóng Mực `drain`, thắng lúc bình minh. Quyết định thiết kế ghi ở `docs/adr/`, thay đổi phá vỡ tương thích ghi ở `CHANGELOG.md`.
 
 ## Lệnh
 - Cài: `npm ci` (Node >= 20)
@@ -18,7 +18,8 @@ Contract hiện tại: **v1.1** (Ticket-02), gồm 3 Đêm, số chuẩn và th�
 
 ## Quy tắc
 - Test Contract là bắt buộc: không đổi tên trường, tên sự kiện, tên trạng thái, mã thoát, định dạng JSONL.
-- Ticket mới thay luật cũ thì sửa test kèm ghi chú `Ticket-N: <lý do>` ngay trong test, và cập nhật bảng "Thay đổi so với phase trước" trong notes. Không xóa hay tắt test âm thầm.
+- Ticket mới thay luật cũ thì sửa test kèm ghi chú `Ticket-N: <lý do>` ngay trong test, cập nhật bảng luật bị thay trong notes, thêm mục vào `CHANGELOG.md` và một ADR nếu đổi mô hình. Không xóa hay tắt test âm thầm.
+- Dầu đèn tính bằng đơn vị nguyên 1/60 (`fuelU`), chỉ làm tròn khi xuất.
 - Không sửa kết quả mong đợi hay file trong `docs/proof/*/out/` bằng tay để cho xanh.
 - Phần sáng tạo thêm không được làm đổi output headless.
 - Hook `Stop` (`.claude/settings.json`) chạy `npm test` và chặn kết thúc khi đỏ. CI (`.github/workflows/ci.yml`) chạy trên ubuntu và macOS.

@@ -28,17 +28,20 @@ npm test        # chạy toàn bộ test
 | Esc hoặc P | Tạm dừng (Tiếp tục / Chơi lại Đêm / Cài đặt / Về menu) |
 | Enter | Chọn nút chính ở menu và màn kết quả |
 
-## Luật chơi và cách tính điểm (số chuẩn Ticket-02)
+## Luật chơi và cách tính điểm (Ticket-02 + Ticket-03 "Đèn cạn dầu")
 
 Số tinh chỉnh nằm ở `tuning` trong [game.contract.json](game.contract.json); các hằng số chuẩn khác và bản đồ nằm ở `STD`, `NIGHTS` trong `src/sim/core.js`.
 
-- **Chuỗi 3 Đêm:** Đảo Bến (5 đèn, 300 s), Đảo Cau (6 đèn, 330 s), Đảo Chuông (7 đèn, 360 s). Thắng thì sang Đêm tiếp, thắng Đêm 3 thì gặp Bình Minh. Thua thì chơi lại Đêm đó.
+- **Chuỗi 3 Đêm:** Đảo Bến (5 đèn, 240 s), Đảo Cau (6 đèn, 270 s), Đảo Chuông (7 đèn, 300 s). **Thắng khi tới bình minh còn ít nhất 60% số đèn đang sáng** (3/5, 4/6, 5/7); thắp đủ đèn không kết thúc Đêm. Thắng thì sang Đêm tiếp, thắng Đêm 3 thì gặp Bình Minh. Thua thì chơi lại Đêm đó.
+- **Dầu đèn:** đèn sáng có 100 dầu, hao 1/giây, hết dầu thì tắt. Đứng gần đèn đang sáng nhấn E để châm dầu (mỗi đom đóm +10 dầu). Thắp lại đèn đã từng sáng chỉ cần 5 đom đóm. Đèn dầu < 30 nhấp nháy và mất vùng an toàn.
+- **Sức chứa:** 10 + 2 × số lần thắp thành công, tối đa 20.
 - **Đom đóm:** tự nhặt khi tới gần (≤ 1 m), mang tối đa 10.
 - **Đèn:**
   - Đứng trong 2 m quanh đèn chưa sáng, nhấn E để nạp. Cần 10 đom đóm để thắp; đèn nhớ phần đã nạp.
   - Đèn đã sáng tạo vùng an toàn 6 m mà Bóng Mực không vào được.
 - **Bóng Mực:**
   - Đuổi khi Mây cách ≤ 12 m, bỏ đuổi khi > 18 m.
+  - Lúc lang thang, Bóng Mực tìm đèn yếu (dầu < 30) để hút dầu 5/giây; Mây lại gần trong 6 m thì nó bỏ đèn để đuổi.
   - Chạm thì Mây mất 1 lửa, rơi một nửa số đom đóm đang mang ra xung quanh, và được bất tử 1,5 s.
 - **Rơi khỏi đảo:** mất 1 lửa và toàn bộ đom đóm, hồi sinh ở điểm xuất phát sau 1 s. Hết 3 lửa thì thua.
 - **Lướt (Shift):** 14 m/s trong 0,2 s, hồi chiêu 1,5 s.
@@ -46,14 +49,15 @@ Số tinh chỉnh nằm ở `tuning` trong [game.contract.json](game.contract.js
 - **Gió Lạc (Đêm 2, 3):** cướp 3 đom đóm khi Mây mang từ 5 con trở lên. Tỏa sáng trúng nó lúc đang bỏ chạy thì đom đóm bị thả lại.
 - **Bùa Gió:** trong 10 s chạy 7,2 m/s và lướt không cần hồi chiêu.
 - **Gió mạnh (Đêm 3):** cứ 30 s lại có một cơn gió đẩy Mây trong 5 s.
-- **Điểm:**
-  - +10 cho mỗi đom đóm nạp vào đèn.
-  - +100 cho mỗi đèn thắp.
-  - +5 cho mỗi Bóng Mực trúng tỏa sáng.
-  - Khi thắng, cộng thêm 2 × số giây còn lại (lấy phần nguyên) và 50 × số lửa còn lại.
+- **Điểm (Ticket-03):**
+  - +5 cho mỗi đom đóm nạp vào đèn (thắp hoặc châm dầu).
+  - +100 khi thắp lần đầu, +40 khi thắp lại.
+  - +5 cho mỗi Bóng Mực trúng tỏa sáng (+15 nếu nó đang hút dầu).
+  - Khi thắng lúc bình minh: mỗi đèn đang sáng +50 + phần nguyên số dầu, mỗi lửa còn lại +50.
   - Tổng điểm là tổng các Đêm đã thắng.
+- **Cài đặt "Bảng màu dễ phân biệt"** (Esc → Cài đặt): Bóng Mực viền xanh #00B3FF, cảnh báo màu trắng kèm ⚠; đèn tắt luôn xẹp và rách nên không cần màu để phân biệt.
 
-## Chế độ headless (Test Contract v1.1)
+## Chế độ headless (Test Contract v1.2)
 
 ```bash
 node src/headless.js --seed 1 --night 1 --ticks 600 --out out.jsonl [--scenario s.json] [--inputs i.json] [--snapshot-every 10]
@@ -67,9 +71,10 @@ node src/headless.js --seed 1 --night 1 --ticks 600 --out out.jsonl [--scenario 
 
 ## Kiểm chứng
 
-- `npm test`: 40 test, gồm contract, luật chơi Phase 1 đã cập nhật theo số chuẩn, và tính năng Phase 2.
+- `npm test`: 48 test, gồm contract, luật chơi Phase 1–2 (cập nhật theo luật mới, có ghi chú `Ticket-N:`), tính năng Phase 2 và luật dầu đèn Phase 3.
 - `node scripts/verify.js phase-N`: chạy test, các scenario trong `docs/proof/phase-N/scenarios`, kiểm tra tất định và mã thoát.
-- Bằng chứng: [Phase 1](docs/proof/phase-1/README.md), [Phase 2](docs/proof/phase-2/README.md).
+- Bằng chứng: [Phase 1](docs/proof/phase-1/README.md), [Phase 2](docs/proof/phase-2/README.md), [Phase 3](docs/proof/phase-3/README.md).
+- Quyết định thiết kế: [docs/adr/](docs/adr/0001-den-co-dau-va-thang-luc-binh-minh.md). Thay đổi phá vỡ tương thích: [CHANGELOG.md](CHANGELOG.md).
 - Tình huống dựng sẵn trong trình duyệt: `/?night=2&seed=1`, `/?demo=near-win`, `/?demo=shade`, `/?night=2&demo=drifter`.
 
 ## Sáng tạo của tôi
