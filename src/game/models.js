@@ -274,3 +274,149 @@ export function animateLantern(v, l, T, time, camera) {
   v.barBg.lookAt(camera.position.x, v.g.position.y + 5, camera.position.z);
   v.bar.quaternion.copy(v.barBg.quaternion);
 }
+
+// ---------- Vẽ theo lô (instancing) cho nhiều Bóng Mực và đom đóm (Ticket-04: cảnh bench 200 Bóng Mực) ----------
+const _m = new THREE.Matrix4();
+const _l = new THREE.Matrix4();
+const _t = new THREE.Matrix4();
+const _q = new THREE.Quaternion();
+const _e = new THREE.Euler();
+const _v = new THREE.Vector3();
+const _s = new THREE.Vector3();
+const _c = new THREE.Color();
+function inst(geo, mat, count) {
+  const m = new THREE.InstancedMesh(geo, mat, count);
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  m.frustumCulled = false;
+  m.count = 0;
+  return m;
+}
+function glowPoints(max, size, opacity) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(max * 3), 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(max * 3), 3));
+  const pts = new THREE.Points(
+    geo,
+    new THREE.PointsMaterial({ map: glowTex, size, vertexColors: true, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending }),
+  );
+  pts.frustumCulled = false;
+  return pts;
+}
+const local = (x, y, z, rx, ry, rz, sx, sy, sz) => _l.compose(_v.set(x, y, z), _q.setFromEuler(_e.set(rx, ry, rz)), _s.set(sx, sy, sz));
+
+export function createShadeSwarm(max = 256) {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.2 });
+  const body = inst(inkGeo, bodyMat, max);
+  const rim = inst(inkGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.BackSide, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false }), max);
+  const tGeo = new THREE.ConeGeometry(0.13, 0.9, 6);
+  tGeo.rotateX(Math.PI);
+  tGeo.translate(0, -0.4, 0);
+  const tendrils = inst(tGeo, bodyMat, max * 7);
+  const eyes = inst(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), max * 2);
+  const mouth = inst(new THREE.TorusGeometry(0.28, 0.05, 6, 14, Math.PI), new THREE.MeshBasicMaterial({ color: 0x050208 }), max);
+  const teeth = inst(new THREE.ConeGeometry(0.03, 0.09, 4), new THREE.MeshBasicMaterial({ color: 0xc9b6ff }), max * 5);
+  const aura = glowPoints(max, 3.4, 0.5);
+  const eyeGlow = glowPoints(max, 1.4, 0.7);
+  group.add(aura, rim, body, tendrils, eyes, mouth, teeth, eyeGlow);
+  const all = [body, rim, tendrils, eyes, mouth, teeth];
+  return {
+    group,
+    update(shades, time, target, colorblind = false) {
+      const n = Math.min(shades.length, max);
+      const rimCol = colorblind ? 0x00b3ff : C.rim;
+      const eyeCol = colorblind ? 0x00b3ff : 0xff2a6d;
+      const ap = aura.geometry.attributes.position.array;
+      const ac = aura.geometry.attributes.color.array;
+      const ep = eyeGlow.geometry.attributes.position.array;
+      const ec = eyeGlow.geometry.attributes.color.array;
+      for (let i = 0; i < n; i++) {
+        const s = shades[i];
+        const stunned = s.state === 'stunned';
+        const w = time * (stunned ? 1 : 4) + i * 1.7;
+        const sc = s.state === 'spawning' ? 0.3 : 1;
+        const yaw = Math.atan2(target[0] - s.pos[0], target[2] - s.pos[2]);
+        const y = s.pos[1] + 0.12 * Math.sin(time * 2.4 + s.pos[0]);
+        _m.compose(_v.set(s.pos[0], y, s.pos[2]), _q.setFromEuler(_e.set(0, yaw, 0)), _s.set(sc, sc, sc));
+        const bodyCol = stunned ? C.stun : C.shade;
+        local(0, 0, 0, 0, 0, 0, 1 + 0.06 * Math.sin(w), 1 + 0.08 * Math.sin(w * 1.3 + 1), 1 + 0.06 * Math.cos(w));
+        body.setMatrixAt(i, _t.multiplyMatrices(_m, _l));
+        body.setColorAt(i, _c.set(bodyCol));
+        local(0, 0, 0, 0, 0, 0, 1.1 + 0.05 * Math.sin(w * 1.7), 1.12 + 0.05 * Math.cos(w * 1.1), 1.1 + 0.05 * Math.sin(w * 0.9));
+        rim.setMatrixAt(i, _t.multiplyMatrices(_m, _l));
+        rim.setColorAt(i, _c.set(rimCol).multiplyScalar(stunned ? 0 : 0.75 + 0.25 * Math.sin(w * 2)));
+        for (let j = 0; j < 7; j++) {
+          const a = (j / 7) * Math.PI * 2;
+          local(Math.cos(a) * 0.45, -0.6, Math.sin(a) * 0.45, Math.sin(w * 1.4 + j) * 0.35, 0, Math.cos(w * 1.1 + j * 2) * 0.35, 1, 1, 1);
+          tendrils.setMatrixAt(i * 7 + j, _t.multiplyMatrices(_m, _l));
+          tendrils.setColorAt(i * 7 + j, _c.set(bodyCol));
+        }
+        const squint = s.state === 'chase' ? 0.036 : 0.054;
+        for (let k = 0; k < 2; k++) {
+          const sx = k ? 1 : -1;
+          local(0.27 * sx, 0.2, 0.8, 0, 0, 0.35 * sx, 0.18, squint, 0.072);
+          eyes.setMatrixAt(i * 2 + k, _t.multiplyMatrices(_m, _l));
+          eyes.setColorAt(i * 2 + k, _c.set(stunned ? 0x666677 : eyeCol));
+        }
+        local(0, -0.12, 0.82, 0, 0, Math.PI, 1, 1, 1);
+        mouth.setMatrixAt(i, _t.multiplyMatrices(_m, _l));
+        for (let k = 0; k < 5; k++) {
+          const a = Math.PI + 0.35 + (k / 4) * (Math.PI - 0.7);
+          local(Math.cos(a) * 0.28, -0.12 + Math.sin(a) * 0.28 + 0.04, 0.86, 0, 0, Math.PI, 1, 1, 1);
+          teeth.setMatrixAt(i * 5 + k, _t.multiplyMatrices(_m, _l));
+        }
+        ap.set([s.pos[0], y, s.pos[2]], i * 3);
+        _c.set(rimCol).multiplyScalar(stunned ? 0.15 : 0.6);
+        ac.set([_c.r, _c.g, _c.b], i * 3);
+        ep.set([s.pos[0] + Math.sin(yaw) * 0.9 * sc, y + 0.2 * sc, s.pos[2] + Math.cos(yaw) * 0.9 * sc], i * 3);
+        _c.set(stunned ? 0x000000 : eyeCol);
+        ec.set([_c.r, _c.g, _c.b], i * 3);
+      }
+      body.count = rim.count = mouth.count = n;
+      tendrils.count = n * 7;
+      eyes.count = n * 2;
+      teeth.count = n * 5;
+      for (const m of all) {
+        m.instanceMatrix.needsUpdate = true;
+        if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      }
+      for (const p of [aura, eyeGlow]) {
+        p.geometry.setDrawRange(0, n);
+        p.geometry.attributes.position.needsUpdate = true;
+        p.geometry.attributes.color.needsUpdate = true;
+      }
+    },
+  };
+}
+
+export function createMoteSwarm(max = 256) {
+  const group = new THREE.Group();
+  const cores = inst(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color: C.mote }), max);
+  const halos = glowPoints(max, 1.15, 0.85);
+  group.add(cores, halos);
+  return {
+    group,
+    update(motes, time) {
+      const n = Math.min(motes.length, max);
+      const hp = halos.geometry.attributes.position.array;
+      const hc = halos.geometry.attributes.color.array;
+      _c.set(C.halo);
+      for (let i = 0; i < n; i++) {
+        const m = motes[i];
+        const ph = (m.pos[0] * 12.9898 + m.pos[2] * 78.233) % 6.283;
+        const x = m.pos[0] + Math.sin(time * 1.3 + ph) * 0.55;
+        const y = m.pos[1] + 0.9 + Math.sin(time * 2.1 + ph * 2) * 0.35;
+        const z = m.pos[2] + Math.cos(time * 1.7 + ph) * 0.55;
+        cores.setMatrixAt(i, _m.makeTranslation(x, y, z));
+        hp.set([x, y, z], i * 3);
+        const f = 0.65 + 0.35 * Math.sin(time * 6 + ph);
+        hc.set([_c.r * f, _c.g * f, _c.b * f], i * 3);
+      }
+      cores.count = n;
+      cores.instanceMatrix.needsUpdate = true;
+      halos.geometry.setDrawRange(0, n);
+      halos.geometry.attributes.position.needsUpdate = true;
+      halos.geometry.attributes.color.needsUpdate = true;
+    },
+  };
+}

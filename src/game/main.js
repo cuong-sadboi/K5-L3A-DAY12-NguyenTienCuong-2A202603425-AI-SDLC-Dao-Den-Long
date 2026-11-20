@@ -1,9 +1,9 @@
 // Giao diện 3D: chỉ đọc state của src/sim và gửi input; luật chơi nằm hoàn toàn trong src/sim.
 import * as THREE from 'three';
 import contract from '../../game.contract.json';
-import { createWorld, step, DT, timeLeftS, NIGHTS, surfacesAt, capacityOf } from '../sim/core.js';
+import { createWorld, createBenchWorld, step, DT, timeLeftS, NIGHTS, surfacesAt, capacityOf } from '../sim/core.js';
 import { buildSkyAndSea, buildIsland, MOON_DIR } from './scenery.js';
-import { makeMay, animateMay, makeShade, animateShade, makeMote, placeMote, makeLantern, animateLantern } from './models.js';
+import { makeMay, animateMay, makeLantern, animateLantern, createShadeSwarm, createMoteSwarm } from './models.js';
 import { DEMOS } from './demos.js';
 
 const T = contract.tuning;
@@ -101,6 +101,7 @@ const moon = new THREE.DirectionalLight(0xc9d6ff, 1.5);
 moon.position.copy(MOON_DIR).multiplyScalar(100);
 scene.add(moon);
 window.addEventListener('resize', () => {
+  if (mode === 'bench') return;
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -144,6 +145,8 @@ let total = 0;
 let mode = 'menu';
 let views = {};
 let may = null;
+let shadeSwarm = null;
+let moteSwarm = null;
 const effects = [];
 
 function startNight(n) {
@@ -153,9 +156,12 @@ function startNight(n) {
   world = createWorld(T, { seed, night: n, scenario: demo || null });
   islandFx = buildIsland(level, n);
   dyn.clear();
-  views = { lanterns: new Map(), motes: new Map(), shades: new Map(), drifters: new Map(), charms: new Map() };
+  views = { lanterns: new Map(), drifters: new Map(), charms: new Map() };
   may = makeMay();
   dyn.add(may.g);
+  shadeSwarm = createShadeSwarm(256);
+  moteSwarm = createMoteSwarm(256);
+  dyn.add(shadeSwarm.group, moteSwarm.group);
   for (const l of world.lanterns) {
     const v = makeLantern(l, T);
     dyn.add(v.g);
@@ -432,13 +438,9 @@ function sync(time, dt) {
     if (l.lit) lit++;
     animateLantern(views.lanterns.get(l.id), l, T, time, camera);
   }
-  // Đom đóm bay lượn quanh điểm của nó (chỉ hiển thị; vị trí logic để nhặt vẫn là điểm chuẩn).
-  syncEntities(views.motes, world.motes, makeMote, (v, m) => placeMote(v, m, time));
-  syncEntities(views.shades, world.shades, makeShade, (v, s) => {
-    v.g.position.set(s.pos[0], s.pos[1] + 0.12 * Math.sin(time * 2.4 + s.pos[0]), s.pos[2]);
-    v.g.lookAt(p.pos[0], v.g.position.y, p.pos[2]);
-    animateShade(v, s, time, settings.colorblind);
-  });
+  // Đom đóm bay lượn quanh điểm của nó (chỉ hiển thị; vị trí logic để nhặt vẫn là điểm chuẩn). Vẽ theo lô (instancing).
+  moteSwarm.update(world.motes, time);
+  shadeSwarm.update(world.shades, time, p.pos, settings.colorblind);
   syncEntities(
     views.drifters,
     world.drifters.filter((d) => d.state !== 'removed'),
@@ -535,6 +537,75 @@ function sync(time, dt) {
   $('wind-warn').style.display = world.windEnabled && !world.wind.active && nextGust <= 120 && mode === 'play' ? 'block' : 'none';
 }
 
+// ---------- Chế độ benchmark (Ticket-04) ----------
+// Cảnh chuẩn: 1280×720, Đêm 1 đủ ánh sáng, 200 Bóng Mực + 100 đom đóm (createBenchWorld), không input,
+// camera bay vòng tâm (0,0,0) bán kính 30 m ở Y = 15, bắt đầu ở (30,15,0), 15 s một vòng; khởi động 3 s rồi đo --duration giây.
+const BENCH_INPUT = { move: [0, 0], cam_yaw_deg: 0, jump: false, interact: false, pulse: false, dash: false, pause: false };
+const bench = { duration: Number(params.get('duration') || 30), t0: null, prev: 0, dts: [], done: false, firstEpoch: 0 };
+function startBench() {
+  renderer.setPixelRatio(1);
+  renderer.setSize(1280, 720);
+  camera.aspect = 1280 / 720;
+  camera.updateProjectionMatrix();
+  document.body.classList.add('bench');
+  night = 1;
+  world = createBenchWorld(T, Number(params.get('seed') || 42));
+  islandFx = buildIsland(level, 1, { decor: false }); // tắt hiệu ứng trang trí sáng tạo trong cảnh bench
+  dyn.clear();
+  views = { lanterns: new Map(), drifters: new Map(), charms: new Map() };
+  may = makeMay();
+  dyn.add(may.g);
+  shadeSwarm = createShadeSwarm(256);
+  moteSwarm = createMoteSwarm(256);
+  dyn.add(shadeSwarm.group, moteSwarm.group);
+  for (const l of world.lanterns) {
+    const v = makeLantern(l, T);
+    dyn.add(v.g);
+    views.lanterns.set(l.id, v);
+  }
+  mode = 'bench';
+  hideScreen();
+}
+function benchFrame(now) {
+  if (bench.t0 === null) {
+    bench.t0 = now;
+    bench.firstEpoch = performance.timeOrigin + now;
+  } else {
+    const t = (now - bench.t0) / 1000;
+    if (t > 3 && t <= 3 + bench.duration) bench.dts.push(now - bench.prev);
+    else if (t > 3 + bench.duration && !bench.done) finishBench();
+  }
+  bench.prev = now;
+  const th = ((now - bench.t0) / 1000) * ((2 * Math.PI) / 15);
+  camera.position.set(30 * Math.cos(th), 15, 30 * Math.sin(th));
+  camera.lookAt(0, 0, 0);
+}
+function finishBench() {
+  bench.done = true;
+  const d = bench.dts;
+  const n = d.length;
+  const r1 = (x) => Math.round(x * 10) / 10;
+  const sorted = [...d].sort((x, y) => x - y);
+  const k = Math.max(1, Math.ceil(0.01 * n));
+  const worst = sorted.slice(n - k).reduce((x, y) => x + y, 0) / k;
+  const gl = renderer.getContext();
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  const gpu = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  const result = {
+    contract_version: '1.3',
+    avg_fps: r1((1000 * n) / d.reduce((x, y) => x + y, 0)),
+    p1_low_fps: r1(1000 / worst),
+    frame_ms_p95: r1(sorted[Math.min(n - 1, Math.ceil(0.95 * n) - 1)]),
+    frames: n,
+    first_frame_epoch_ms: Math.round(bench.firstEpoch),
+    renderer: 'three.js r' + THREE.REVISION + ' (WebGL2); GPU: ' + gpu + '; ' + navigator.userAgent,
+  };
+  window.__benchResult = result;
+  const report = params.get('report');
+  if (report) fetch(report, { method: 'POST', body: JSON.stringify(result) }).catch(() => {});
+  document.title = 'BENCH DONE';
+}
+
 // ---------- Vòng lặp: bước cố định 60 Hz ----------
 let acc = 0;
 let last = performance.now();
@@ -554,7 +625,15 @@ function frame(now) {
         if (mode !== 'play') break;
       }
     }
+    if (mode === 'bench') {
+      acc += dt;
+      while (acc >= DT) {
+        step(world, BENCH_INPUT);
+        acc -= DT;
+      }
+    }
     sync(now / 1000, dt);
+    if (mode === 'bench') benchFrame(now);
   }
   skyFx.update(now / 1000, camera);
   if (islandFx) islandFx.update(now / 1000);
@@ -564,7 +643,8 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 camera.position.set(0, 6, -10);
-if (params.has('night') || params.has('demo')) startNight(Number(params.get('night') || 1));
+if (params.has('bench')) startBench();
+else if (params.has('night') || params.has('demo')) startNight(Number(params.get('night') || 1));
 else {
   startNight(1);
   showMenu();

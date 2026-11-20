@@ -142,7 +142,7 @@ function topY(n, x, z) {
   return hs.length ? Math.max(...hs) : null;
 }
 
-export function buildIsland(group, n) {
+export function buildIsland(group, n, opts = {}) {
   group.clear();
   const r = rng(100 + n);
   const islands = islandsOf(n);
@@ -378,7 +378,13 @@ export function buildIsland(group, n) {
   const flyGeo = new THREE.BufferGeometry();
   flyGeo.setAttribute('position', new THREE.Float32BufferAttribute(flyBase.slice(), 3));
   const flyMat = new THREE.PointsMaterial({ map: glowTex, color: 0xd8f08a, size: 0.35, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending });
-  group.add(new THREE.Points(flyGeo, flyMat));
+  const flies = new THREE.Points(flyGeo, flyMat);
+  group.add(flies);
+  // Cảnh bench (Ticket-04): tắt sương trôi và đom đóm trang trí (hiệu ứng sáng tạo thêm).
+  if (opts.decor === false) {
+    flies.visible = false;
+    for (const s of mist) s.visible = false;
+  }
 
   return {
     update(time) {
