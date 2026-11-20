@@ -49,8 +49,9 @@ test('R6 nạp đèn trong interact_radius: deposit + lantern_lit + điểm', ()
   assert.equal(dep.tick, 1);
   assert.deepEqual(dep.data, { lantern_id: 'L1', amount: T.lantern_cost, deposited: T.lantern_cost });
   const lit = r.events.find((x) => x.name === 'lantern_lit');
-  assert.deepEqual([lit.tick, lit.data], [1, { lantern_id: 'L1' }]);
-  // Ticket-02: +per_mote cho mỗi đom đóm nạp, +per_lantern khi thắp.
+  // Ticket-03: lantern_lit thêm trường relight.
+  assert.deepEqual([lit.tick, lit.data], [1, { lantern_id: 'L1', relight: false }]);
+  // Ticket-02: +per_mote cho mỗi đom đóm nạp, +per_lantern khi thắp (Ticket-03: per_mote = 5).
   assert.equal(r.snap(1).score, T.score.per_lantern + T.score.per_mote * T.lantern_cost);
   assert.equal(r.snap(1).lanterns.find((l) => l.id === 'L1').lit, true);
 });
@@ -68,15 +69,16 @@ test('R7 nạp một phần thì chưa thắp; ngoài interact_radius thì khôn
   assert.equal(out.events.length, 0);
 });
 
-test('R8 thắp đèn cuối cùng thì thắng (all_lit), cộng điểm thời gian và flame còn lại', () => {
+test('R8 thắp hết đèn KHÔNG kết thúc Đêm; bình minh còn >= ceil(0.6 × tổng) đèn sáng thì thắng dawn_survived', () => {
+  // Ticket-03 thay luật Phase 1–2 "thắng ngay khi tất cả đèn sáng" (all_lit không còn dùng).
   const lanterns = FAR_LANTERNS.map((l) => (l.id === 'L1' ? { id: 'L1', pos: [0, 0, 1] } : { ...l, lit: true }));
-  const r = run({ player: { carried: T.lantern_cost }, lanterns }, [{ tick: 0, interact: true }], 100);
-  assert.deepEqual(r.events.map((e) => e.name), ['deposit', 'lantern_lit', 'game_over']);
-  assert.deepEqual(r.events[2].data, { result: 'won', reason: 'all_lit' });
-  const timeLeft = Math.floor(T.night1_duration_s - 1 / 60);
-  const expected =
-    T.score.per_mote * T.lantern_cost + T.score.per_lantern + timeLeft * T.score.per_second_left + T.flames * T.score.per_flame_left;
-  assert.deepEqual(r.end, { type: 'end', ticks: 1, state: 'won', score: expected });
+  const r = run({ player: { carried: T.lantern_cost }, lanterns, time_left_s: 2 }, [{ tick: 0, interact: true }], 200);
+  assert.deepEqual(r.events.filter((e) => e.tick === 1).map((e) => e.name), ['deposit', 'lantern_lit']);
+  const over = r.events.find((e) => e.name === 'game_over');
+  assert.deepEqual([over.tick, over.data], [120, { result: 'won', reason: 'dawn_survived' }]);
+  const fuel = T.fuel_max - 2; // 4 đèn đặt sẵn và L1 đều cháy 2 giây (L1 thắp ở tick 1 nên còn 98.0167 -> floor 98)
+  const expected = T.score.per_mote * T.lantern_cost + T.score.per_lantern + 5 * (50 + fuel) + T.flames * T.score.per_flame_left;
+  assert.equal(r.end.score, expected);
 });
 
 test('R9 dựng scenario không phát sự kiện và không cộng điểm', () => {
@@ -85,7 +87,8 @@ test('R9 dựng scenario không phát sự kiện và không cộng điểm', ()
   assert.equal(r.events.length, 0);
   assert.equal(r.snap(0).score, 0);
   const l2 = r.snap(0).lanterns.find((l) => l.id === 'L2');
-  assert.deepEqual(l2, { id: 'L2', pos: [5, 0, 5], lit: true, deposited: 10 });
+  // Ticket-03: đèn có thêm fuel (mặc định 100 khi lit: true), ever_lit, relit_count.
+  assert.deepEqual(l2, { id: 'L2', pos: [5, 0, 5], lit: true, deposited: 10, fuel: 100, ever_lit: true, relit_count: 0 });
 });
 
 test('R10 Bóng Mực trong tầm phát hiện đuổi theo, chạm (<= shade_hit_radius) thì mất 1 flame', () => {

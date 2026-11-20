@@ -27,16 +27,17 @@ function cli(args) {
 
 test('C1 game.contract.json có đủ trường và tuning', () => {
   for (const k of ['contract_version', 'team', 'build_cmd', 'run_cmd', 'headless_cmd', 'tuning']) assert.ok(k in contract, k);
-  // Ticket-02: contract v1.1, tuning phải khớp số chuẩn (Phần 1).
-  assert.equal(contract.contract_version, '1.1');
+  // Ticket-02: tuning khớp số chuẩn. Ticket-03: contract v1.2, thời gian Đêm 240/270/300, thêm khóa dầu/thắng, điểm mới.
+  assert.equal(contract.contract_version, '1.2');
   const standard = {
     player_speed: 6, carry_capacity: 10, lantern_cost: 10, lantern_count_night1: 5, pickup_radius: 1, interact_radius: 2,
-    pulse_cost: 3, pulse_radius: 5, night1_duration_s: 300, flames: 3, invuln_s: 1.5, hit_drop_ratio: 0.5, pulse_stun_s: 2,
+    pulse_cost: 3, pulse_radius: 5, night1_duration_s: 240, flames: 3, invuln_s: 1.5, hit_drop_ratio: 0.5, pulse_stun_s: 2,
     pulse_push_m: 4, pulse_cooldown_s: 3, safe_radius: 6, shade_speed: 4, shade_hit_radius: 1, fall_enabled: true,
-    dash_speed: 14, dash_duration_s: 0.2, dash_cooldown_s: 1.5, night2_duration_s: 330, night3_duration_s: 360,
+    dash_speed: 14, dash_duration_s: 0.2, dash_cooldown_s: 1.5, night2_duration_s: 270, night3_duration_s: 300,
+    fuel_max: 100, fuel_decay_per_s: 1, fuel_per_mote: 10, relight_cost: 5, win_ratio: 0.6, drain_per_s: 5, low_fuel_threshold: 30, capacity_max: 20,
   };
   for (const [k, v] of Object.entries(standard)) assert.equal(contract.tuning[k], v, k);
-  assert.deepEqual(contract.tuning.score, { per_mote: 10, per_lantern: 100, per_stun: 5, per_second_left: 2, per_flame_left: 50 });
+  assert.deepEqual(contract.tuning.score, { per_mote: 5, per_lantern: 100, per_stun: 5, per_second_left: 0, per_flame_left: 50 });
 });
 
 test('C2 output: snapshot tick 0, snapshot mỗi 10 tick (mặc định), dòng cuối là end', () => {
@@ -48,7 +49,9 @@ test('C2 output: snapshot tick 0, snapshot mỗi 10 tick (mặc định), dòng 
   const keys = ['tick', 'sim_tick', 'night', 'state', 'time_left_s', 'score', 'wind', 'player', 'lanterns', 'shades', 'motes_active', 'motes', 'drifters', 'charms'];
   for (const k of keys) assert.ok(k in s, k);
   assert.deepEqual(Object.keys(s.wind), ['active', 'dir_deg']);
-  assert.deepEqual(Object.keys(s.player), ['pos', 'vel', 'grounded', 'flames', 'carried', 'invuln', 'dash_cd_s', 'pulse_cd_s', 'charm_s']);
+  // Ticket-03: player thêm capacity, đèn thêm fuel/ever_lit/relit_count.
+  assert.deepEqual(Object.keys(s.player), ['pos', 'vel', 'grounded', 'flames', 'carried', 'invuln', 'dash_cd_s', 'pulse_cd_s', 'charm_s', 'capacity']);
+  assert.deepEqual(Object.keys(s.lanterns[0]), ['id', 'pos', 'lit', 'deposited', 'fuel', 'ever_lit', 'relit_count']);
   assert.deepEqual(Object.keys(s.motes[0]), ['id', 'pos', 'kind', 'ttl_s']);
   assert.equal(s.lanterns.length, 5);
   assert.equal(r.lines[1].name, 'night_start');
