@@ -1,0 +1,13 @@
+$ echo {"stop_hook_active":false} | node scripts/stop-hook.js   (có 1 test đỏ cố ý)
+npm test đang ĐỎ, chưa được kết thúc. Sửa các test sau rồi chạy lại npm test:
+✖ Z tạm thời: test đỏ cố ý để thử hook (15.1105ms)
+✖ failing tests:
+✖ Z tạm thời: test đỏ cố ý để thử hook (15.1105ms)
+exit=2
+
+$ echo {"stop_hook_active":true} | node scripts/stop-hook.js   (lần 2, tránh vòng lặp)
+npm test đang ĐỎ, chưa được kết thúc. Sửa các test sau rồi chạy lại npm test:
+✖ Z tạm thời: test đỏ cố ý để thử hook (6.2922ms)
+✖ failing tests:
+✖ Z tạm thời: test đỏ cố ý để thử hook (6.2922ms)
+exit=0

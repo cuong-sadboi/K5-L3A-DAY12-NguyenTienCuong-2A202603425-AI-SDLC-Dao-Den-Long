@@ -1,0 +1,48 @@
+✔ C1 game.contract.json có đủ trường và tuning (1.833ms)
+✔ C2 output: snapshot tick 0, snapshot mỗi 10 tick (mặc định), dòng cuối là end (222.4294ms)
+✔ C3 --snapshot-every 1 cho N+1 snapshot; dừng sớm khi game kết thúc (301.1218ms)
+✔ C4 tất định: cùng seed giống hệt từng byte, khác seed thì khác (609.4926ms)
+✔ C5 file inputs/scenario sai định dạng thì thoát mã 2 và báo lỗi ra stderr (759.4599ms)
+✔ C6 tham số sai thì thoát mã khác 0 (580.3679ms)
+✔ C7 ví dụ trên board (scenario + inputs mẫu) chạy được, sự kiện ghi tick = k+1 (138.6309ms)
+✔ C8 --night 2 và 3 chạy được; một Đêm đầy đủ chạy xong <= 30 giây (929.7578ms)
+✔ P1 lướt: 14 m/s trong 0.2 s theo hướng di chuyển, hồi chiêu 1.5 s tính từ lúc bắt đầu (18.7445ms)
+✔ P2 lướt khi đứng yên đi theo hướng đang quay mặt (+Z lúc xuất phát); trên không giữ độ cao (0.7632ms)
+✔ P3 tạm dừng: tick vẫn tăng, sim_tick và thời gian đứng yên, state "paused" (0.6774ms)
+✔ P4 rơi khỏi đảo (Y < -10): -1 lửa, mất hết đom đóm, chờ 60 tick rồi hồi sinh ở điểm xuất phát, bất tử (15.44ms)
+✔ P5 bị Bóng Mực đánh rơi floor(mang/2) đom đóm ra vành 1.5–2.5 m, tồn tại 480 tick (6.9397ms)
+✔ P6 Bóng Mực: ngoài 12 m thì wander, trong 12 m thì chase (0.9293ms)
+✔ P7 đèn vừa thắp đẩy Bóng Mực bên trong ra mép 6 m trong 30 tick, không gây sát thương (1.9212ms)
+✔ P8 Đêm 2: bục nhảy bắn sang đảo kia, bay khoảng 1.4 s (7.8202ms)
+✔ P9 Đêm 2: Gió Lạc đuổi khi Mây mang >= 5 đom đóm, cướp 3, bỏ chạy 240 tick rồi biến mất (13.8134ms)
+✔ P10 Tỏa Sáng trúng Gió Lạc đang bỏ chạy có mang đồ thì thả lại đom đóm (drifter_drop) (3.3197ms)
+✔ P11 Bùa Gió: nhặt như đom đóm, 600 tick chạy 7.2 m/s, xuất hiện lại sau 2700 tick (5.5348ms)
+✔ P12 Đêm 3: vách tầng chặn đi lên, dốc ở 30° đưa lên tầng 1 (Y = 3) (5.6256ms)
+✔ P13 Đêm 3: gió mạnh mỗi 30 s kéo dài 5 s, đẩy Mây 2 m/s (39.2162ms)
+✔ P14 đom đóm: 20 lúc đầu, thêm 1 mỗi 240 tick (9.3936ms)
+✔ P15 Đêm 2 và 3 có đúng số đèn (6 và 7) theo bản đồ chuẩn (0.9138ms)
+✔ R1 di chuyển: move [0,1] trong 1 giây đi đúng player_speed theo +Z (16.1411ms)
+✔ R2 cam_yaw_deg 90: move [0,1] đi theo +X (1.3914ms)
+✔ R3 vector dài hơn 1 được chuẩn hóa; frame giữ giá trị cũ khi vắng trường (1.7415ms)
+✔ R4 nhặt đom đóm tự động khi khoảng cách <= pickup_radius (7.5424ms)
+✔ R5 không mang quá carry_capacity (0.7346ms)
+✔ R6 nạp đèn trong interact_radius: deposit + lantern_lit + điểm (0.9286ms)
+✔ R7 nạp một phần thì chưa thắp; ngoài interact_radius thì không nạp (3.5021ms)
+✔ R8 thắp đèn cuối cùng thì thắng (all_lit), cộng điểm thời gian và flame còn lại (2.5174ms)
+✔ R9 dựng scenario không phát sự kiện và không cộng điểm (0.714ms)
+✔ R10 Bóng Mực trong tầm phát hiện đuổi theo, chạm (<= shade_hit_radius) thì mất 1 flame (8.8041ms)
+✔ R11 bất tử invuln_s sau khi bị chạm; hết flame thì thua no_flames (13.5159ms)
+✔ R12 tỏa sáng: tốn pulse_cost, choáng + đẩy Bóng Mực trong pulse_radius, cộng per_stun (8.0328ms)
+✔ R13 tỏa sáng kích hoạt theo cạnh false->true, tôn trọng hồi chiêu và chi phí (53.6512ms)
+✔ R14 Bóng Mực không vào được safe_radius quanh ĐÈN ĐÃ SÁNG; đèn chưa sáng không chặn (45.7558ms)
+✔ R15 time_left_s giảm theo số bước; hết giờ thì thua dawn (5.0608ms)
+✔ R16 scenario: shades [] thay danh sách; random_shades vẫn sinh theo lịch (2 con ở tick 300) (7.0133ms)
+✔ R17 nhảy chỉ đổi độ cao, không đổi vị trí XZ (0.7859ms)
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3877.4894
