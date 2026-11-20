@@ -5,35 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Đảo Đèn Lồng</title>
     <style>
-      :root { --text: #f5f1e6; --danger: #ff5a5f; --gold: #f2c14e; --panel: rgba(14, 20, 48, 0.78); }
+      :root { --fs: 18px; --text: #f5f1e6; --danger: #ff5a5f; --gold: #f2c14e; --panel: rgba(14, 20, 48, 0.78); }
       html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1430; font-family: system-ui, sans-serif; color: var(--text); }
       #app { position: fixed; inset: 0; }
-      .hud { position: fixed; background: var(--panel); border: 1px solid rgba(242, 193, 78, 0.35); border-radius: 10px; padding: 6px 12px; font-weight: 600; }
-      #hud-flames { top: 12px; left: 12px; font-size: 22px; color: #ffb347; letter-spacing: 4px; }
-      #hud-clock { top: 12px; left: 50%; transform: translateX(-50%); font-size: 24px; min-width: 70px; text-align: center; }
+      .hud { position: fixed; background: var(--panel); border: 1px solid rgba(242, 193, 78, 0.35); border-radius: 10px; padding: 6px 12px; font-weight: 600; font-size: var(--fs); }
+      #caption { bottom: 110px; left: 50%; transform: translateX(-50%); display: none; font-size: calc(var(--fs) * 1.15); }
+      #shade-arrow { position: fixed; width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 26px solid var(--danger); display: none; }
+      table.lb { border-collapse: collapse; font-size: var(--fs); margin: 10px; }
+      table.lb td, table.lb th { padding: 4px 12px; border-bottom: 1px solid rgba(242, 193, 78, 0.3); }
+      #hud-flames { top: 12px; left: 12px; font-size: calc(var(--fs) * 1.25); color: #ffb347; letter-spacing: 4px; }
+      #hud-clock { top: 12px; left: 50%; transform: translateX(-50%); font-size: calc(var(--fs) * 1.35); min-width: 70px; text-align: center; }
       #hud-clock.danger { color: var(--danger); animation: blink 0.8s steps(2) infinite; }
       @keyframes blink { 50% { opacity: 0.35; } }
-      #hud-right { top: 12px; right: 12px; text-align: right; font-size: 16px; line-height: 1.5; }
+      #hud-right { top: 12px; right: 12px; text-align: right; font-size: var(--fs); line-height: 1.5; }
       #hud-right b { color: var(--gold); }
       #hud-motes { bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px 8px; }
       #hud-motes i { width: 16px; height: 16px; border-radius: 50%; background: rgba(255, 246, 194, 0.12); border: 1px solid rgba(255, 229, 138, 0.4); }
       #hud-motes i.on { background: #fff6c2; box-shadow: 0 0 8px #ffe58a; }
-      #hud-cd { bottom: 14px; right: 12px; display: flex; gap: 8px; font-size: 13px; }
-      #hud-cd div { width: 64px; text-align: center; padding: 4px 0; border-radius: 8px; background: rgba(242, 193, 78, 0.18); }
+      #hud-cd { bottom: 14px; right: 12px; display: flex; gap: 8px; font-size: var(--fs); }
+      #hud-cd div { min-width: 86px; text-align: center; padding: 4px 0; border-radius: 8px; background: rgba(242, 193, 78, 0.18); }
       #hud-cd div.wait { background: rgba(91, 95, 110, 0.5); color: #b9b4a8; }
       #prompt { bottom: 56px; left: 50%; transform: translateX(-50%); display: none; }
       #arrow { position: fixed; width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent;
                border-bottom: 26px solid var(--gold); display: none; filter: drop-shadow(0 0 4px #000); }
-      #help { position: fixed; bottom: 46px; right: 12px; font-size: 12px; color: #c9c3b4; text-align: right; }
+      #help { position: fixed; bottom: 60px; right: 12px; font-size: var(--fs); max-width: 46vw; color: #c9c3b4; text-align: right; }
       #screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column;
                 background: rgba(14, 20, 48, 0.78); text-align: center; padding: 20px; }
-      #screen h1 { font-size: 44px; margin: 0 0 10px; color: #ffb347; }
-      #screen p { font-size: 18px; margin: 6px; max-width: 640px; }
-      #screen button { margin: 5px; padding: 8px 20px; font-size: 16px; border-radius: 8px; border: 1px solid var(--gold);
+      #screen h1 { font-size: calc(var(--fs) * 2.4); margin: 0 0 10px; color: #ffb347; }
+      #screen p { font-size: var(--fs); margin: 6px; max-width: 640px; }
+      #screen button { margin: 5px; padding: 8px 20px; font-size: var(--fs); border-radius: 8px; border: 1px solid var(--gold);
                        background: rgba(242, 193, 78, 0.15); color: var(--text); cursor: pointer; min-width: 220px; }
-      #screen label { display: block; margin: 8px; }
+      #screen label { display: block; margin: 8px; font-size: var(--fs); }
       #flash { position: fixed; inset: 0; background: rgba(255, 90, 95, 0.3); opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-      #lock-hint { top: 50%; left: 50%; transform: translate(-50%, -50%); display: none; font-size: 16px; pointer-events: none; }
+      #lock-hint { top: 50%; left: 50%; transform: translate(-50%, -50%); display: none; font-size: var(--fs); pointer-events: none; }
       body.bench .hud, body.bench #help, body.bench #arrow, body.bench #screen { display: none !important; }
       #wind-warn { top: 56px; left: 50%; transform: translateX(-50%); display: none; color: #8fa3b8; }
     </style>
@@ -50,7 +54,9 @@
     <div class="hud" id="wind-warn">Lá bay... gió mạnh sắp tới!</div>
     <div class="hud" id="lock-hint">Nhấp vào màn hình để nhìn bằng chuột · Esc để thả chuột</div>
     <div id="arrow"></div>
-    <div id="help">Chuột: nhìn (nhấp để khóa, Esc để thả) · Lăn chuột: gần/xa · WASD đi · Space nhảy · Shift lướt · E nạp · F tỏa sáng · P tạm dừng</div>
+    <div id="shade-arrow"></div>
+    <div class="hud" id="caption"></div>
+    <div id="help">Chuột: nhìn (nhấp để khóa, Esc thả) · WASD đi · Space nhảy · Shift lướt · E nạp · F tỏa sáng · P tạm dừng (đổi phím trong Cài đặt)</div>
     <div id="screen"></div>
     <script type="module" src="/src/game/main.js"></script>
   </body>

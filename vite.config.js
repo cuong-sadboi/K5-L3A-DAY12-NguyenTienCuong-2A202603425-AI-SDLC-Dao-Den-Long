@@ -31,8 +31,13 @@ function leaderboardApi() {
   };
   return {
     name: 'leaderboard-api',
-    configureServer: (server) => server.middlewares.use('/api/leaderboard', handler),
-    configurePreviewServer: (server) => server.middlewares.use('/api/leaderboard', handler),
+    // Thân hàm không trả về gì: nếu trả về một hàm, Vite sẽ coi đó là hook chạy sau và gọi nhầm.
+    configureServer(server) {
+      server.middlewares.use('/api/leaderboard', handler);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use('/api/leaderboard', handler);
+    },
   };
 }
 
