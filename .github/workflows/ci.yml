@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+      - name: Headless chạy đủ một Đêm cho cả 3 Đêm và tất định
+        run: |
+          for n in 1 2 3; do
+            node src/headless.js --seed 42 --night $n --ticks 21600 --out a.jsonl
+            node src/headless.js --seed 42 --night $n --ticks 21600 --out b.jsonl
+            cmp a.jsonl b.jsonl
+          done
+      - run: npm run build

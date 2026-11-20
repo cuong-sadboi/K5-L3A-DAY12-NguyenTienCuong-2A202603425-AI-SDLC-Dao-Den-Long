@@ -32,7 +32,7 @@ report.push('## Scenario headless\n\n| Scenario | Sự kiện (tick:tên) | Dòn
 for (const f of readdirSync(scenDir).filter((x) => x.endsWith('.scenario.json')).sort()) {
   const name = f.replace('.scenario.json', '');
   const extra = existsSync(join(scenDir, `${name}.args.json`)) ? JSON.parse(readFileSync(join(scenDir, `${name}.args.json`), 'utf8')) : {};
-  const args = ['--seed', String(extra.seed ?? 1), '--night', '1', '--ticks', String(extra.ticks ?? 600), '--scenario', join(scenDir, f)];
+  const args = ['--seed', String(extra.seed ?? 1), '--night', String(extra.night ?? 1), '--ticks', String(extra.ticks ?? 600), '--scenario', join(scenDir, f)];
   if (existsSync(join(scenDir, `${name}.inputs.json`))) args.push('--inputs', join(scenDir, `${name}.inputs.json`));
   const out = join(outDir, `${name}.jsonl`);
   const r = run([...args, '--out', out]);
