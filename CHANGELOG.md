@@ -10,6 +10,8 @@
 - Dễ tiếp cận: đổi phím có báo trùng, phụ đề và báo hình ảnh, giảm chuyển động, chữ tối thiểu 18 px và chữ lớn.
 - Hiệu năng: vẽ Bóng Mực và đom đóm theo lô (instancing).
 - Thêm LICENSE (MIT); CREDITS ghi đủ nguồn.
+- Góc nhìn đi đúng theo chuột: khóa chuột kiểu thô, lọc giá trị nhảy vọt của trình duyệt, không làm mượt, bỏ xoay bằng phím; camera kéo lại gần thay vì nâng lên khi chạm địa hình.
+- Sáng tạo: Chế độ thư giãn (đồi cao thấp, gấp đôi đom đóm, đèn hao dầu chậm một nửa), chỉ có ở giao diện.
 
 ## phase-3 — Test Contract v1.2 (Ticket-03 "Đèn cạn dầu")
 

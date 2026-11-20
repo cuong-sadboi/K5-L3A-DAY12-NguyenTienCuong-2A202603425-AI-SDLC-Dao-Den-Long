@@ -1,7 +1,8 @@
 // Cảnh trang trí (chỉ hiển thị, không có va chạm, không ảnh hưởng logic/headless):
 // bầu trời có trăng và sao, biển mây lấp lánh, đảo có vách đá và bãi cát, cỏ, hoa, bụi, cây, di tích, sương mù, đom đóm trang trí.
 import * as THREE from 'three';
-import { NIGHTS, surfacesAt } from '../sim/core.js';
+import { NIGHTS, surfacesAt, hillHeight } from '../sim/core.js';
+let RELAX = false;
 
 const PAL = { sky: 0x0e1430, fog: 0x1b2350, grass: 0x2f5d50, sand: 0xc9b48a, wood: 0x6b4a2f, sea: 0x12384a, halo: 0xffe58a, gold: 0xf2c14e };
 export const MOON_DIR = new THREE.Vector3(0.3, 0.42, 0.86).normalize();
@@ -134,16 +135,17 @@ function freeSpot(n, x, z, gap) {
     const r = Math.hypot(x, z);
     if (r < 10 || (r > 10 && r < 26 && z > -2)) return false;
   }
-  const hs = surfacesAt(n, x, z).filter((h) => h < 14);
+  const hs = surfacesAt(n, x, z, RELAX).filter((h) => h < 14);
   return hs.length > 0 && hs.every((h) => h === 0 || h === 3 || h === 6);
 }
 function topY(n, x, z) {
-  const hs = surfacesAt(n, x, z).filter((h) => h < 14);
+  const hs = surfacesAt(n, x, z, RELAX).filter((h) => h < 14);
   return hs.length ? Math.max(...hs) : null;
 }
 
 export function buildIsland(group, n, opts = {}) {
   group.clear();
+  RELAX = !!opts.relax;
   const r = rng(100 + n);
   const islands = islandsOf(n);
   for (const isl of islands) {
@@ -159,6 +161,19 @@ export function buildIsland(group, n, opts = {}) {
     foam.rotation.x = -Math.PI / 2;
     foam.position.set(isl.c[0], -8.45, isl.c[1]);
     group.add(body, beach, foam);
+  }
+  // Chế độ thư giãn: mặt đất đồi cao thấp (lưới vòng tròn nâng theo hillHeight, khớp đúng mặt đất của logic).
+  if (RELAX) {
+    const parts = n === 3 ? [[0, 0, new THREE.RingGeometry(29, 45, 160, 18)]] : islands.map((isl) => [isl.c[0], isl.c[1], new THREE.RingGeometry(0.01, isl.r, 160, 40)]);
+    for (const [cx, cz, g] of parts) {
+      g.rotateX(-Math.PI / 2);
+      const pos = g.attributes.position;
+      for (let i = 0; i < pos.count; i++) pos.setY(i, hillHeight(n, pos.getX(i) + cx, pos.getZ(i) + cz) + 0.03);
+      g.computeVertexNormals();
+      const hills = new THREE.Mesh(g, matGrass);
+      hills.position.set(cx, 0, cz);
+      group.add(hills);
+    }
   }
 
   if (n === 2) {

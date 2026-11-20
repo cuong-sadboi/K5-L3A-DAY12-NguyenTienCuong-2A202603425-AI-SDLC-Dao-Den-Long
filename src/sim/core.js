@@ -155,7 +155,28 @@ export function createRng(seed) {
 
 // ---------- Địa hình ----------
 // Các mặt đi được tại (x, z). Mỗi mặt là khối đặc từ dưới lên, mép là vách đứng.
-export function surfacesAt(night, x, z) {
+// Chế độ thư giãn (sáng tạo, chỉ có ở giao diện): đồi cao thấp trên nền đảo, phẳng dần ở mép đảo,
+// quanh đèn, điểm xuất phát, bục nhảy, cầu và vùng tầng/dốc của Đêm 3. Độ dốc nhỏ để đi lên xuống tự nhiên.
+export function hillHeight(night, x, z) {
+  const def = NIGHTS[night];
+  const h = 1.1 + 1.3 * Math.sin(x * 0.11 + 1.3) * Math.cos(z * 0.09 - 0.7) + 0.8 * Math.sin((x - z) * 0.06 + 0.4);
+  if (h <= 0) return 0;
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  let edge;
+  if (night === 1) edge = 40 - Math.hypot(x, z);
+  else if (night === 2) edge = Math.max(28 - Math.hypot(x, z), 28 - Math.hypot(x - 70, z));
+  else {
+    const r = Math.hypot(x, z);
+    edge = Math.min(45 - r, r - 31);
+  }
+  let f = clamp01((edge - 3) / 8);
+  for (const l of def.lanterns) f *= clamp01((Math.hypot(l.pos[0] - x, l.pos[2] - z) - 4) / 5);
+  f *= clamp01((Math.hypot(def.start[0] - x, def.start[2] - z) - 3) / 5);
+  for (const p of def.pads) f *= clamp01((Math.hypot(p.pos[0] - x, p.pos[2] - z) - 2) / 4);
+  if (night === 2) f *= clamp01((Math.hypot(x - 26, z) - 2) / 5) * clamp01((Math.hypot(x - 44, z) - 2) / 5);
+  return h * f;
+}
+export function surfacesAt(night, x, z, relax = false) {
   const out = [];
   if (night === 1) {
     if (x * x + z * z <= 40 * 40) out.push(0);
@@ -174,18 +195,19 @@ export function surfacesAt(night, x, z) {
       if (along >= 24 && along <= 30 && Math.abs(lat) <= 1.5) out.push((3 * (30 - along)) / 6);
     }
   }
+  if (relax) for (let i = 0; i < out.length; i++) if (out[i] === 0) out[i] = hillHeight(night, x, z);
   return out;
 }
 function groundBelow(w, x, z, y) {
   let best = null;
-  for (const h of surfacesAt(w.night, x, z)) if (h <= y + STEP_UP + EPS && (best === null || h > best)) best = h;
+  for (const h of surfacesAt(w.night, x, z, w.relax)) if (h <= y + STEP_UP + EPS && (best === null || h > best)) best = h;
   return best;
 }
 function blocked(w, x, z, y) {
-  return surfacesAt(w.night, x, z).some((h) => h > y + STEP_UP + EPS);
+  return surfacesAt(w.night, x, z, w.relax).some((h) => h > y + STEP_UP + EPS);
 }
 function topSurface(w, x, z) {
-  const s = surfacesAt(w.night, x, z).filter((h) => h < 14);
+  const s = surfacesAt(w.night, x, z, w.relax).filter((h) => h < 14);
   return s.length ? Math.max(...s) : null;
 }
 
@@ -220,7 +242,7 @@ function makeDrifter(id, pos, state = 'idle', stolen = 0) {
   return { id, pos: [...pos], state, stolen, hasStolen: stolen > 0, fleeLeft: state === 'flee' ? STD.drifterFlee : 0, anchor: [pos[0] - 3, pos[2]], phase: 0 };
 }
 
-export function createWorld(tuning, { seed = 0, night = 1, scenario = null } = {}) {
+export function createWorld(tuning, { seed = 0, night = 1, scenario = null, relax = false } = {}) {
   const def = NIGHTS[night];
   if (!def) throw new Error(`night ${night} chưa được hỗ trợ`);
   const T = tuning;
@@ -230,6 +252,7 @@ export function createWorld(tuning, { seed = 0, night = 1, scenario = null } = {
     tuning: T,
     def,
     night,
+    relax,
     rng: createRng(seed),
     tick: 0,
     simTick: 0,
@@ -271,6 +294,26 @@ export function createWorld(tuning, { seed = 0, night = 1, scenario = null } = {
     prev: { jump: false, interact: false, pulse: false, dash: false, pause: false },
     justLit: [],
   };
+  // Điểm sinh đom đóm: chuẩn; chế độ thư giãn thêm 30 điểm ngẫu nhiên (theo Đêm) và đặt đúng độ cao đồi.
+  w.motePoints = def.motePoints;
+  if (relax) {
+    const r = createRng(1000 + night);
+    const extra = [];
+    const disks = night === 2 ? [[0, 0, 25], [70, 0, 25]] : [[0, 0, night === 1 ? 37 : 43]];
+    while (extra.length < 30) {
+      const [cx, cz, R] = disks[extra.length % disks.length];
+      const a = r() * Math.PI * 2;
+      const d = Math.sqrt(r()) * R;
+      const x = cx + Math.cos(a) * d;
+      const z = cz + Math.sin(a) * d;
+      if (night === 3 && Math.hypot(x, z) < 31) continue;
+      extra.push([x, 0, z]);
+    }
+    w.motePoints = [...def.motePoints, ...extra].map(([x, y, z]) => {
+      const top = topSurface(w, x, z);
+      return [x, top !== null && y === 0 ? top : y, z];
+    });
+  }
   const p = w.player;
   const g = groundBelow(w, p.pos[0], p.pos[2], p.pos[1]);
   p.grounded = g !== null && p.pos[1] - g <= SNAP_DOWN;
@@ -291,12 +334,12 @@ export function createWorld(tuning, { seed = 0, night = 1, scenario = null } = {
       else addMote(w, m.pos, m.kind || 'random', m.kind === 'dropped' ? (m.ttl_ticks != null ? m.ttl_ticks : STD.dropTtl) : null, -1, m.id || null);
     }
   } else if (w.randomMotes) {
-    const idx = def.motePoints.map((_, i) => i);
+    const idx = w.motePoints.map((_, i) => i);
     for (let i = idx.length - 1; i > 0; i--) {
       const j = Math.floor(w.rng() * (i + 1));
       [idx[i], idx[j]] = [idx[j], idx[i]];
     }
-    for (const i of idx.slice(0, STD.moteInitial)) addMote(w, def.motePoints[i], 'random', null, i);
+    for (const i of idx.slice(0, relax ? 2 * STD.moteInitial : STD.moteInitial)) addMote(w, w.motePoints[i], 'random', null, i);
   }
 
   if (Array.isArray(sc.shades)) {
@@ -499,7 +542,7 @@ function moveShades(w) {
         const k = T.pulse_push_m / STD.pushTicks;
         const nx = s.pos[0] + s.pushDir[0] * k;
         const nz = s.pos[2] + s.pushDir[1] * k;
-        if (surfacesAt(w.night, nx, nz).some((h) => h > s.pos[1] - STD.shadeHover + STEP_UP + EPS)) s.pushLeft = 0;
+        if (surfacesAt(w.night, nx, nz, w.relax).some((h) => h > s.pos[1] - STD.shadeHover + STEP_UP + EPS)) s.pushLeft = 0;
         else {
           s.pos[0] = nx;
           s.pos[2] = nz;
@@ -681,7 +724,8 @@ export function step(w, input) {
   for (const l of w.lanterns) {
     if (!l.lit || w.bench) continue;
     const drainers = w.shades.filter((s) => s.state === 'drain' && s.target === l.id);
-    l.fuelU -= Math.round(T.fuel_decay_per_s) + Math.round(T.drain_per_s) * drainers.length;
+    const decay = w.relax && st % 2 === 1 ? 0 : Math.round(T.fuel_decay_per_s); // thư giãn: hao dầu chậm một nửa
+    l.fuelU -= decay + Math.round(T.drain_per_s) * drainers.length;
     for (const s of drainers) {
       s.drainTicks += 1;
       if (s.drainTicks % TICK_RATE === 0) ev.push({ name: 'fuel_drain', data: { lantern_id: l.id, shade_id: s.id, fuel: fuelOut(l) } });
@@ -861,14 +905,14 @@ export function step(w, input) {
 
   // 10. Sinh đom đóm, Bóng Mực, Gió Lạc, gió theo lịch (thực thể mới tương tác từ tick sau).
   if (w.bench) return ev; // Cảnh bench (Ticket-04): không sinh thực thể, không xét kết thúc Đêm.
-  if (w.randomMotes && st % STD.moteEvery === 0) {
+  if (w.randomMotes && st % (w.relax ? STD.moteEvery / 2 : STD.moteEvery) === 0) {
     const randoms = w.motes.filter((m) => m.kind === 'random');
-    if (randoms.length < STD.moteCap) {
+    if (randoms.length < (w.relax ? 2 * STD.moteCap : STD.moteCap)) {
       const used = new Set(randoms.map((m) => m.point));
-      const free = w.def.motePoints.map((_, i) => i).filter((i) => !used.has(i));
+      const free = w.motePoints.map((_, i) => i).filter((i) => !used.has(i));
       if (free.length) {
         const i = free[Math.floor(w.rng() * free.length)];
-        addMote(w, w.def.motePoints[i], 'random', null, i);
+        addMote(w, w.motePoints[i], 'random', null, i);
       }
     }
   }

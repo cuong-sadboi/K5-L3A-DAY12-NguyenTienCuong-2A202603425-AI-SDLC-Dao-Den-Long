@@ -119,7 +119,7 @@ const level = new THREE.Group();
 scene.add(level);
 let islandFx = null;
 const camGround = (x, z) => {
-  const s = surfacesAt(night, x, z);
+  const s = surfacesAt(night, x, z, relaxMode);
   return s.length ? Math.max(...s) : -8.5;
 };
 
@@ -147,6 +147,7 @@ const dyn = new THREE.Group();
 scene.add(dyn);
 let world = null;
 let night = 1;
+let relaxMode = params.has('relax'); // chế độ thư giãn (sáng tạo)
 let total = 0;
 let mode = 'menu';
 let views = {};
@@ -159,9 +160,9 @@ function startNight(n) {
   night = n;
   const demo = DEMOS[params.get('demo')];
   const seed = params.has('seed') ? Number(params.get('seed')) : Math.floor(Math.random() * 1e9);
-  world = createWorld(T, { seed, night: n, scenario: demo || null });
+  world = createWorld(T, { seed, night: n, scenario: demo || null, relax: relaxMode });
   runSeed = seed;
-  islandFx = buildIsland(level, n);
+  islandFx = buildIsland(level, n, { relax: relaxMode });
   dyn.clear();
   views = { lanterns: new Map(), drifters: new Map(), charms: new Map() };
   may = makeMay();
@@ -213,7 +214,8 @@ function showMenu() {
   mode = 'menu';
   total = 0;
   showScreen('<h1>Đảo Đèn Lồng</h1><p>Giúp Mây thắp lại đèn lồng trên ba hòn đảo trong sương đen.</p>', [
-    ['Bắt đầu (Enter)', () => showIntro(1)],
+    ['Bắt đầu (Enter)', () => ((relaxMode = false), showIntro(1))],
+    ['Chế độ thư giãn', () => ((relaxMode = true), showIntro(1))],
     ['Bảng xếp hạng', showLeaderboard],
     ['Cài đặt', () => showSettings(showMenu)],
   ]);
@@ -250,6 +252,10 @@ function nameForm() {
   return '<p><input id="lb-name" maxlength="12" placeholder="Tên (3–12 ký tự: chữ, số, _)" style="font-size:var(--fs);padding:6px"></p><p id="lb-msg"></p>';
 }
 async function submitScore(after) {
+  if (relaxMode) {
+    $('lb-msg').textContent = 'Chế độ thư giãn không lưu vào bảng xếp hạng (luật khác chuẩn).';
+    return;
+  }
   const name = ($('lb-name').value || '').trim().normalize('NFC');
   if (!validName(name)) {
     $('lb-msg').textContent = '⚠ Tên cần 3–12 ký tự, chỉ gồm chữ, số hoặc _';
@@ -383,6 +389,8 @@ const tapped = new Set();
 let camYaw = 0;
 let camPitch = 22;
 let camDist = 8.5;
+const camTarget = new THREE.Vector3(0, 1.4, 0);
+const camDir = new THREE.Vector3();
 let pauseTap = false;
 
 // Khóa con trỏ chuột kiểu FPS: nhấp vào màn hình để khóa, di chuyển chuột là xoay hướng nhìn,
@@ -397,10 +405,18 @@ function lockPointer() {
   // Chỉ xin khóa khi đang có thao tác của người chơi (nhấp/phím); xin lúc tải trang sẽ bị từ chối.
   if (navigator.userActivation && !navigator.userActivation.isActive) return;
   lockAskedAt = performance.now();
+  const plain = () => {
+    try {
+      const r2 = canvas.requestPointerLock();
+      if (r2 && r2.catch) r2.catch(() => {});
+    } catch {}
+  };
   try {
-    const r = canvas.requestPointerLock();
-    if (r && r.catch) r.catch(() => {});
-  } catch {}
+    const r = canvas.requestPointerLock({ unadjustedMovement: true });
+    if (r && r.catch) r.catch(plain);
+  } catch {
+    plain();
+  }
 }
 function releasePointer() {
   if (!locked) return;
@@ -410,6 +426,9 @@ function releasePointer() {
 const playing = () => mode === 'play' && world && world.state === 'playing';
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === canvas;
+  mouseDX = 0;
+  mouseDY = 0;
+  if (locked) skipMouse = 2;
   if (!locked) {
     lastUnlock = performance.now();
     if (!releasingForUI && playing()) pauseTap = true;
@@ -448,16 +467,39 @@ window.addEventListener('blur', () => keys.clear());
 let dragging = false;
 canvas.addEventListener('pointerdown', () => (dragging = !locked));
 window.addEventListener('pointerup', () => (dragging = false));
+// Chrome (nhất là trên Windows) đôi khi báo movementX/Y nhảy vọt hàng trăm pixel trong một sự kiện khi khóa chuột:
+// nếu cộng thẳng vào góc nhìn, camera quay ngoắt ~180° và W thành đi lùi. Lọc các sự kiện đó, cộng dồn phần còn lại
+// rồi áp dụng một lần mỗi khung hình (có giới hạn), camera hiển thị thì nội suy mượt.
+let mouseDX = 0;
+let mouseDY = 0;
+let skipMouse = 0;
+let mouseAvg = 0; // độ lớn chuyển động gần đây (trung bình trượt)
 window.addEventListener('mousemove', (e) => {
   if (!locked && !dragging) return;
-  const k = locked ? 0.12 : 0.3;
-  camYaw -= e.movementX * k * settings.sensitivity;
-  camPitch = Math.min(65, Math.max(6, camPitch + e.movementY * k * 0.7 * settings.sensitivity));
+  if (locked && skipMouse > 0) {
+    skipMouse -= 1;
+    return;
+  }
+  const dx = e.movementX || 0;
+  const dy = e.movementY || 0;
+  const mag = Math.max(Math.abs(dx), Math.abs(dy));
+  // Vẩy chuột thật tăng dần qua vài sự kiện; lỗi trình duyệt là một giá trị đơn lẻ vọt lên gấp nhiều lần.
+  const limit = Math.max(150, 8 * (mouseAvg + 5));
+  mouseAvg = 0.7 * mouseAvg + 0.3 * Math.min(mag, limit);
+  if (mag > limit) return;
+  mouseDX += dx;
+  mouseDY += dy;
 });
+function applyMouse() {
+  const k = (locked ? 0.12 : 0.3) * settings.sensitivity;
+  camYaw -= mouseDX * k;
+  camPitch = Math.min(65, Math.max(6, camPitch + mouseDY * k * 0.7));
+  mouseDX = 0;
+  mouseDY = 0;
+}
 window.addEventListener('wheel', (e) => (camDist = Math.min(14, Math.max(4.5, camDist + e.deltaY * 0.01))), { passive: true });
 function readInput(dt) {
-  if (keys.has('ArrowLeft')) camYaw += 110 * dt * settings.sensitivity;
-  if (keys.has('ArrowRight')) camYaw -= 110 * dt * settings.sensitivity;
+  applyMouse();
   // Camera nhìn theo (sin θ, cos θ): W = move [0,1]; phải màn hình = move [-1,0].
   const K = settings.keys;
   const x = (keys.has(K.left) ? 1 : 0) - (keys.has(K.right) ? 1 : 0);
@@ -596,12 +638,22 @@ function sync(time, dt) {
   }
 
   // Camera góc thứ ba: sau lưng Mây, xoay (yaw) và nghiêng (pitch) bằng chuột, lăn chuột để đổi khoảng cách, không chui xuống đất.
+  // Góc nhìn = đúng góc chuột (camYaw, camPitch): không nội suy, không tự xoay, không nâng camera.
   const th = rad(camYaw);
   const tp = rad(camPitch);
-  const target = new THREE.Vector3(p.pos[0], Math.max(p.pos[1], -10) + 1.4, p.pos[2]);
-  const camWant = target.clone().add(new THREE.Vector3(-Math.sin(th) * Math.cos(tp) * camDist, Math.sin(tp) * camDist, -Math.cos(th) * Math.cos(tp) * camDist));
-  camWant.y = Math.max(camWant.y, camGround(camWant.x, camWant.z) + 0.8);
-  camera.position.lerp(camWant, Math.min(1, dt * 7));
+  const target = camTarget.set(p.pos[0], Math.max(p.pos[1], -10) + 1.4, p.pos[2]);
+  camDir.set(-Math.sin(th) * Math.cos(tp), Math.sin(tp), -Math.cos(th) * Math.cos(tp));
+  let dist = camDist;
+  for (let i = 1; i <= 16; i++) {
+    const d = (camDist * i) / 16;
+    const x = target.x + camDir.x * d;
+    const z = target.z + camDir.z * d;
+    if (target.y + camDir.y * d < camGround(x, z) + 0.5) {
+      dist = Math.max(1.2, (camDist * (i - 1)) / 16);
+      break;
+    }
+  }
+  camera.position.copy(target).addScaledVector(camDir, dist);
   camera.lookAt(target.x, target.y + 0.3, target.z);
 
   // HUD
@@ -620,7 +672,7 @@ function sync(time, dt) {
     if (!low) lowFuelWarned.delete(l.id);
   }
   lastSecond = tl;
-  $('hud-right').innerHTML = `Đèn <b>${lit}/${world.lanterns.length}</b><br>Điểm <b>${world.score}</b>${total ? `<br>Tổng <b>${total}</b>` : ''}`;
+  $('hud-right').innerHTML = (relaxMode ? 'Thư giãn<br>' : '') + `Đèn <b>${lit}/${world.lanterns.length}</b><br>Điểm <b>${world.score}</b>${total ? `<br>Tổng <b>${total}</b>` : ''}`;
   const cap = capacityOf(world);
   $('hud-motes').innerHTML = Array.from({ length: cap }, (_, i) => `<i class="${i < p.carried ? 'on' : ''}"></i>`).join('') + `<span style="margin-left:6px">${p.carried}/${cap}</span>`;
   const dashWait = p.charmLeft > 0 ? 0 : p.dashCd / 60;
@@ -811,5 +863,8 @@ window.__game = {
   },
   get mode() {
     return mode;
+  },
+  get camYaw() {
+    return camYaw;
   },
 };

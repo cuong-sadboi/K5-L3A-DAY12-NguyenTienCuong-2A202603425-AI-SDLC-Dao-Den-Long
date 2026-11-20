@@ -34,7 +34,6 @@ npm start       # mở game trong trình duyệt (http://localhost:5173)
 | Chuột | Nhìn quanh kiểu FPS: nhấp vào màn hình để khóa chuột, di chuyển chuột để xoay và nghiêng camera (độ nhạy chỉnh trong Cài đặt) |
 | Esc | Thả chuột và mở menu tạm dừng |
 | Lăn chuột | Kéo camera gần/xa |
-| ← / → | Xoay camera bằng bàn phím |
 | Space | Nhảy |
 | Shift | Lướt |
 | E | Nạp đom đóm vào đèn (đứng gần đèn) |
@@ -121,6 +120,8 @@ node src/headless.js --seed 1 --night 1 --ticks 600 --out out.jsonl [--scenario 
 - Tình huống dựng sẵn trong trình duyệt: `/?night=2&seed=1`, `/?demo=near-win`, `/?demo=shade`, `/?night=2&demo=drifter`.
 
 ## Sáng tạo của tôi
+
+- **Chế độ thư giãn** (nút ở menu chính): đảo có đồi cao thấp, Mây đi lên xuống theo đúng sườn đồi. Đom đóm gấp đôi (40 lúc đầu, tối đa 60, sinh nhanh gấp đôi) và đèn hao dầu chậm một nửa. Chế độ này không lưu vào bảng xếp hạng. Chế độ thường và headless giữ nguyên số chuẩn và bản đồ chuẩn, nên output headless không đổi. Bằng chứng: test X1–X3 trong `tests/relax.test.js`; 53 test chuẩn vẫn đạt.
 
 - **Đèn lồng nhỏ trên nón lá của Mây cho biết số lửa còn lại.** Đèn sáng mạnh khi còn đủ lửa, mờ dần khi mất lửa, và chập chờn khi chỉ còn 1. Phần này chỉ nằm ở giao diện, nên output headless không đổi: test tất định và các scenario vẫn đạt.
 - **Lời dẫn của Ông Đăng** ở màn giới thiệu mỗi Đêm, và âm thanh tự tổng hợp bằng WebAudio (không dùng file ngoài).
