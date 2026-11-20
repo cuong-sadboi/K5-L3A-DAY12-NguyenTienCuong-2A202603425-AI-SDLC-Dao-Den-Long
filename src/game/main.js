@@ -1,7 +1,9 @@
 // Giao diện 3D: chỉ đọc state của src/sim và gửi input; luật chơi nằm hoàn toàn trong src/sim.
 import * as THREE from 'three';
 import contract from '../../game.contract.json';
-import { createWorld, step, DT, timeLeftS, NIGHTS } from '../sim/core.js';
+import { createWorld, step, DT, timeLeftS, NIGHTS, surfacesAt } from '../sim/core.js';
+import { buildSkyAndSea, buildIsland, MOON_DIR } from './scenery.js';
+import { makeMay, animateMay, makeShade, animateShade, makeMote, placeMote, makeLantern } from './models.js';
 import { DEMOS } from './demos.js';
 
 const T = contract.tuning;
@@ -85,15 +87,18 @@ const SFX = {
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.35;
 $('app').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(C.sky);
-scene.fog = new THREE.FogExp2(C.fog, 0.012);
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 700);
-const hemi = new THREE.HemisphereLight(0xc8d0ff, 0x203040, 0.15);
+scene.fog = new THREE.FogExp2(C.fog, 0.009);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1200);
+// Ánh sáng môi trường theo công thức của ticket (cập nhật trong sync); ánh trăng là đèn hướng riêng nên cảnh vẫn sáng.
+const hemi = new THREE.HemisphereLight(0xc8d0ff, 0x2f5d50, 0.15);
 scene.add(hemi);
-const moon = new THREE.DirectionalLight(0xaab8ff, 0.35);
-moon.position.set(-30, 60, 20);
+const moon = new THREE.DirectionalLight(0xc9d6ff, 1.5);
+moon.position.copy(MOON_DIR).multiplyScalar(100);
 scene.add(moon);
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -101,132 +106,16 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ---------- Địa hình theo bản đồ chuẩn ----------
-const matGrass = new THREE.MeshStandardMaterial({ color: C.grass, roughness: 1 });
-const matSand = new THREE.MeshStandardMaterial({ color: C.sand, roughness: 1 });
-const matWood = new THREE.MeshStandardMaterial({ color: C.wood, roughness: 1 });
-const matStone = new THREE.MeshStandardMaterial({ color: 0x4a4e5c, roughness: 1 });
+// ---------- Cảnh: bầu trời, trăng, biển mây, đảo, cây cỏ, di tích, sương (src/game/scenery.js) ----------
+const skyFx = buildSkyAndSea(scene);
 const level = new THREE.Group();
 scene.add(level);
-function disk(r, x, z, top = 0, depth = 6) {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.85, depth, 64), [matSand, matGrass, matSand]);
-  m.position.set(x, top - depth / 2, z);
-  return m;
-}
-function buildLevel(n) {
-  level.clear();
-  const sea = new THREE.Mesh(new THREE.CircleGeometry(600, 48), new THREE.MeshBasicMaterial({ color: C.sea }));
-  sea.rotation.x = -Math.PI / 2;
-  sea.position.y = -9;
-  level.add(sea);
-  if (n === 1) level.add(disk(40, 0, 0));
-  if (n === 2) {
-    level.add(disk(28, 0, 0), disk(28, 70, 0));
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(18, 0.4, 4), matWood);
-    bridge.position.set(35, -0.2, 0);
-    level.add(bridge);
-  }
-  if (n === 3) {
-    level.add(disk(45, 0, 0));
-    const shape = new THREE.Shape();
-    shape.absarc(0, 0, 24, 0, Math.PI, false);
-    shape.absarc(0, 0, 12, Math.PI, 0, true);
-    const tier1 = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 3, bevelEnabled: false, curveSegments: 32 }), matGrass);
-    tier1.rotation.x = Math.PI / 2;
-    tier1.position.y = 3;
-    level.add(tier1);
-    const tier2 = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 6, 48), [matSand, matGrass, matSand]);
-    tier2.position.y = 3;
-    level.add(tier2);
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(2, 2.2, 8, 24), matStone);
-    tower.position.y = 10;
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(2.8, 2.5, 24), matWood);
-    roof.position.y = 15.2;
-    level.add(tower, roof);
-    for (const a of [30, 150]) {
-      const box = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(6, 3), 0.3, 3), matWood);
-      box.rotation.z = -Math.atan2(3, 6);
-      const g = new THREE.Group();
-      g.add(box);
-      g.rotation.y = -rad(a);
-      g.position.set(27 * Math.cos(rad(a)), 1.5, 27 * Math.sin(rad(a)));
-      level.add(g);
-    }
-  }
-  for (const pad of NIGHTS[n].pads) {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.2, 24), new THREE.MeshStandardMaterial({ color: C.gold, emissive: C.gold, emissiveIntensity: 0.5 }));
-    m.position.set(pad.pos[0], pad.pos[1] + 0.1, pad.pos[2]);
-    level.add(m);
-  }
-}
+let islandFx = null;
+const camGround = (x, z) => {
+  const s = surfacesAt(night, x, z);
+  return s.length ? Math.max(...s) : -8.5;
+};
 
-// ---------- Mô hình vật thể ----------
-function makeMay() {
-  const g = new THREE.Group();
-  const robe = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 1.1, 14), new THREE.MeshStandardMaterial({ color: C.robe }));
-  robe.position.y = 0.55;
-  const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.07, 8, 18), new THREE.MeshStandardMaterial({ color: C.red }));
-  scarf.rotation.x = Math.PI / 2;
-  scarf.position.y = 1.15;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), new THREE.MeshStandardMaterial({ color: 0xf2d2b0 }));
-  head.position.y = 1.42;
-  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.85, 0.45, 28), new THREE.MeshStandardMaterial({ color: 0xe6cf8f }));
-  hat.position.y = 1.82;
-  const lampMat = new THREE.MeshBasicMaterial({ color: C.lit });
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), lampMat);
-  lamp.position.set(0.6, 1.26, 0.3);
-  const light = new THREE.PointLight(C.lit, 2.5, 10, 0);
-  light.position.copy(lamp.position);
-  g.add(robe, scarf, head, hat, lamp, light);
-  return { g, lampMat, light };
-}
-function makeLantern(l) {
-  const g = new THREE.Group();
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, 3, 8), matWood);
-  post.position.y = 1.5;
-  const lampMat = new THREE.MeshStandardMaterial({ color: C.off, emissive: C.lit, emissiveIntensity: 0 });
-  const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.1, 14), lampMat);
-  lamp.position.y = 3.4;
-  const coreMat = new THREE.MeshBasicMaterial({ color: C.off });
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 8), coreMat);
-  core.position.y = 3.4;
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.5, 14), matWood);
-  cap.position.y = 4.2;
-  const light = new THREE.PointLight(C.lit, 0, 26, 0);
-  light.position.y = 3.4;
-  const ringMat = new THREE.MeshBasicMaterial({ color: C.lit, transparent: true, opacity: 0, side: THREE.DoubleSide });
-  const ring = new THREE.Mesh(new THREE.RingGeometry(T.safe_radius - 0.12, T.safe_radius, 64), ringMat);
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.05;
-  g.add(post, lamp, core, cap, light, ring);
-  g.position.set(l.pos[0], l.pos[1], l.pos[2]);
-  return { g, lampMat, coreMat, light, ringMat };
-}
-const moteGeo = new THREE.SphereGeometry(0.15, 10, 8);
-const haloGeo = new THREE.SphereGeometry(0.32, 10, 8);
-const moteMat = new THREE.MeshBasicMaterial({ color: C.mote });
-const haloMat = new THREE.MeshBasicMaterial({ color: C.halo, transparent: true, opacity: 0.35 });
-function makeMote() {
-  const g = new THREE.Group();
-  g.add(new THREE.Mesh(moteGeo, moteMat), new THREE.Mesh(haloGeo, haloMat));
-  return g;
-}
-function makeShade() {
-  const g = new THREE.Group();
-  const bodyMat = new THREE.MeshStandardMaterial({ color: C.shade, roughness: 1 });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.85, 18, 14), bodyMat);
-  body.scale.set(1, 1.15, 1);
-  const rimMat = new THREE.MeshBasicMaterial({ color: C.rim, side: THREE.BackSide });
-  const rim = new THREE.Mesh(new THREE.SphereGeometry(0.93, 18, 14), rimMat);
-  rim.scale.set(1, 1.15, 1);
-  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xd9b3ff });
-  const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), eyeMat);
-  const e2 = e1.clone();
-  e1.position.set(-0.25, 0.2, 0.78);
-  e2.position.set(0.25, 0.2, 0.78);
-  g.add(rim, body, e1, e2);
-  return { g, bodyMat, rimMat, eyeMat };
-}
 function makeDrifter() {
   const mat = new THREE.MeshBasicMaterial({ color: C.drifter, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
   const g = new THREE.Group();
@@ -262,13 +151,13 @@ function startNight(n) {
   const demo = DEMOS[params.get('demo')];
   const seed = params.has('seed') ? Number(params.get('seed')) : Math.floor(Math.random() * 1e9);
   world = createWorld(T, { seed, night: n, scenario: demo || null });
-  buildLevel(n);
+  islandFx = buildIsland(level, n);
   dyn.clear();
   views = { lanterns: new Map(), motes: new Map(), shades: new Map(), drifters: new Map(), charms: new Map() };
   may = makeMay();
   dyn.add(may.g);
   for (const l of world.lanterns) {
-    const v = makeLantern(l);
+    const v = makeLantern(l, T);
     dyn.add(v.g);
     views.lanterns.set(l.id, v);
   }
@@ -388,9 +277,14 @@ window.addEventListener('blur', () => keys.clear());
 let dragging = false;
 renderer.domElement.addEventListener('pointerdown', () => (dragging = true));
 window.addEventListener('pointerup', () => (dragging = false));
+let camPitch = 22;
+let camDist = 8.5;
 window.addEventListener('pointermove', (e) => {
-  if (dragging) camYaw -= e.movementX * 0.3 * settings.sensitivity;
+  if (!dragging) return;
+  camYaw -= e.movementX * 0.3 * settings.sensitivity;
+  camPitch = Math.min(65, Math.max(6, camPitch + e.movementY * 0.2 * settings.sensitivity));
 });
+window.addEventListener('wheel', (e) => (camDist = Math.min(14, Math.max(4.5, camDist + e.deltaY * 0.01))), { passive: true });
 function readInput(dt) {
   if (keys.has('ArrowLeft')) camYaw += 110 * dt * settings.sensitivity;
   if (keys.has('ArrowRight')) camYaw -= 110 * dt * settings.sensitivity;
@@ -465,7 +359,10 @@ function syncEntities(map, list, make, place) {
 function sync(time, dt) {
   const p = world.player;
   may.g.position.set(p.pos[0], p.pos[1], p.pos[2]);
-  may.g.rotation.y = Math.atan2(p.facing[0], p.facing[1]);
+  const face = Math.atan2(p.facing[0], p.facing[1]);
+  const dA = Math.atan2(Math.sin(face - may.g.rotation.y), Math.cos(face - may.g.rotation.y));
+  may.g.rotation.y += dA * Math.min(1, dt * 12);
+  animateMay(may, p, time, dt);
   may.g.visible = p.invulnLeft === 0 || Math.floor(time * 12) % 2 === 0;
   // Sáng tạo (từ Phase 1): đèn nhỏ trên nón sáng theo số lửa còn lại, chập chờn khi còn 1.
   const f = p.flames / T.flames;
@@ -482,15 +379,14 @@ function sync(time, dt) {
     v.coreMat.color.set(l.lit ? C.core : C.off);
     v.light.intensity = l.lit ? 3.2 : 0;
     v.ringMat.opacity = l.lit ? 0.35 : 0;
+    v.halo.material.opacity = l.lit ? 0.75 + 0.1 * Math.sin(time * 3) : 0;
   }
-  syncEntities(views.motes, world.motes, makeMote, (v, m) => v.position.set(m.pos[0], m.pos[1] + 0.8 + 0.2 * Math.sin(time * 2 + m.pos[0]), m.pos[2]));
+  // Đom đóm bay lượn quanh điểm của nó (chỉ hiển thị; vị trí logic để nhặt vẫn là điểm chuẩn).
+  syncEntities(views.motes, world.motes, makeMote, (v, m) => placeMote(v, m, time));
   syncEntities(views.shades, world.shades, makeShade, (v, s) => {
-    v.g.position.set(s.pos[0], s.pos[1] + 0.1 * Math.sin(time * 3 + s.pos[0]), s.pos[2]);
+    v.g.position.set(s.pos[0], s.pos[1] + 0.12 * Math.sin(time * 2.4 + s.pos[0]), s.pos[2]);
     v.g.lookAt(p.pos[0], v.g.position.y, p.pos[2]);
-    const stunned = s.state === 'stunned';
-    v.bodyMat.color.set(stunned ? C.stun : C.shade);
-    v.eyeMat.color.set(stunned ? 0x888888 : 0xd9b3ff);
-    v.g.scale.setScalar(s.state === 'spawning' ? 0.4 : 1);
+    animateShade(v, s, time);
   });
   syncEntities(
     views.drifters,
@@ -522,11 +418,14 @@ function sync(time, dt) {
     if (u >= 1) (scene.remove(fx.mesh), effects.splice(i, 1));
   }
 
+  // Camera góc thứ ba: sau lưng Mây, xoay (yaw) và nghiêng (pitch) bằng chuột, lăn chuột để đổi khoảng cách, không chui xuống đất.
   const th = rad(camYaw);
-  const target = new THREE.Vector3(p.pos[0], Math.max(p.pos[1], -10) + 1.2, p.pos[2]);
-  const want = target.clone().add(new THREE.Vector3(-Math.sin(th) * 9, 4.5, -Math.cos(th) * 9));
-  camera.position.lerp(want, Math.min(1, dt * 8));
-  camera.lookAt(target);
+  const tp = rad(camPitch);
+  const target = new THREE.Vector3(p.pos[0], Math.max(p.pos[1], -10) + 1.4, p.pos[2]);
+  const camWant = target.clone().add(new THREE.Vector3(-Math.sin(th) * Math.cos(tp) * camDist, Math.sin(tp) * camDist, -Math.cos(th) * Math.cos(tp) * camDist));
+  camWant.y = Math.max(camWant.y, camGround(camWant.x, camWant.z) + 0.8);
+  camera.position.lerp(camWant, Math.min(1, dt * 7));
+  camera.lookAt(target.x, target.y + 0.3, target.z);
 
   // HUD
   $('hud-flames').textContent = '●'.repeat(p.flames) + '○'.repeat(Math.max(0, T.flames - p.flames));
@@ -598,6 +497,8 @@ function frame(now) {
     }
     sync(now / 1000, dt);
   }
+  skyFx.update(now / 1000, camera);
+  if (islandFx) islandFx.update(now / 1000);
   renderer.render(scene, camera);
   fps.frames++;
   if (now - fps.t0 >= 1000) (fps.value = fps.frames), (fps.frames = 0), (fps.t0 = now);
