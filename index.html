@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Đảo Đèn Lồng</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f26; font-family: system-ui, sans-serif; color: #fbe9c8; }
+      #app { position: fixed; inset: 0; }
+      #hud { position: fixed; top: 12px; left: 12px; background: rgba(15, 10, 35, 0.72); border: 1px solid rgba(255, 190, 110, 0.35);
+             border-radius: 10px; padding: 10px 14px; font-size: 15px; line-height: 1.6; min-width: 210px; }
+      #hud .row { display: flex; justify-content: space-between; gap: 16px; }
+      #hud .label { color: #c9b8e8; }
+      #hud .val { font-weight: 600; color: #ffd28a; }
+      #hint { position: fixed; bottom: 54px; left: 50%; transform: translateX(-50%); background: rgba(15, 10, 35, 0.75);
+              padding: 6px 14px; border-radius: 8px; font-size: 15px; display: none; }
+      #help { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #c9b8e8;
+              background: rgba(15, 10, 35, 0.6); padding: 5px 12px; border-radius: 8px; white-space: nowrap; }
+      #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column;
+                 background: rgba(10, 6, 25, 0.62); text-align: center; }
+      #overlay h1 { font-size: 44px; margin: 0 0 8px; color: #ffcf7a; }
+      #overlay p { font-size: 18px; margin: 4px; }
+      #flash { position: fixed; inset: 0; background: rgba(120, 40, 160, 0.35); opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="flash"></div>
+    <div id="hud">
+      <div class="row"><span class="label">Lửa (máu)</span><span class="val" id="hud-flames"></span></div>
+      <div class="row"><span class="label">Đom đóm mang</span><span class="val" id="hud-carried"></span></div>
+      <div class="row"><span class="label">Đèn đã thắp</span><span class="val" id="hud-lanterns"></span></div>
+      <div class="row"><span class="label">Thời gian đêm</span><span class="val" id="hud-time"></span></div>
+      <div class="row"><span class="label">Điểm</span><span class="val" id="hud-score"></span></div>
+      <div class="row"><span class="label">Tỏa sáng (F)</span><span class="val" id="hud-pulse"></span></div>
+    </div>
+    <div id="hint"></div>
+    <div id="help">WASD: đi · ←/→ hoặc kéo chuột: xoay camera · Space: nhảy · E: nạp đèn · F: tỏa sáng · R: chơi lại</div>
+    <div id="overlay"><h1 id="ov-title"></h1><p id="ov-text"></p><p>Nhấn <b>R</b> để chơi lại</p></div>
+    <script type="module" src="/src/game/main.js"></script>
+  </body>
+</html>
