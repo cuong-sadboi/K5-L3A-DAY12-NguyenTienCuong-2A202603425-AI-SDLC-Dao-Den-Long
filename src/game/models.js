@@ -174,8 +174,12 @@ export function makeShade() {
   g.add(aura, rim, body, ...eyes, eyeGlow, mouth);
   return { g, body, bodyMat, rim, rimMat, eyes, eyeMat, eyeGlow, aura, tendrils };
 }
-export function animateShade(v, s, time) {
+export function animateShade(v, s, time, colorblind = false) {
   const stunned = s.state === 'stunned';
+  // Ticket-03 chế độ mù màu: viền và mắt đổi sang #00B3FF.
+  v.rimMat.color.set(colorblind ? 0x00b3ff : C.rim);
+  v.aura.material.color.set(colorblind ? 0x00b3ff : C.rim);
+  v.eyeGlow.material.color.set(colorblind ? 0x00b3ff : 0xff2a6d);
   const w = time * (stunned ? 1 : 4) + v.g.id;
   v.body.scale.set(1 + 0.06 * Math.sin(w), 1 + 0.08 * Math.sin(w * 1.3 + 1), 1 + 0.06 * Math.cos(w));
   v.rim.scale.set(1.1 + 0.05 * Math.sin(w * 1.7), 1.12 + 0.05 * Math.cos(w * 1.1), 1.1 + 0.05 * Math.sin(w * 0.9));
@@ -185,7 +189,7 @@ export function animateShade(v, s, time) {
   }
   v.bodyMat.color.set(stunned ? C.stun : C.shade);
   v.rimMat.opacity = stunned ? 0.1 : 0.55 + 0.25 * Math.sin(w * 2);
-  v.eyeMat.color.set(stunned ? 0x666677 : 0xff2a6d);
+  v.eyeMat.color.set(stunned ? 0x666677 : colorblind ? 0x00b3ff : 0xff2a6d);
   v.eyeGlow.material.opacity = stunned ? 0 : 0.45 + 0.2 * Math.sin(w * 3);
   for (const e of v.eyes) e.scale.y = s.state === 'chase' ? 0.32 : 0.5;
   v.aura.material.opacity = stunned ? 0.08 : 0.3;
@@ -237,7 +241,36 @@ export function makeLantern(l, T) {
   const ring = new THREE.Mesh(new THREE.RingGeometry(T.safe_radius - 0.15, T.safe_radius, 64), ringMat);
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.06;
-  g.add(base, post, lamp, core, cap, halo, light, ring);
+  // Ticket-03: thanh dầu trên đèn đang sáng; đèn tắt xẹp 20% và có vết rách (phân biệt không cần màu).
+  const barBg = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.14, 0.05), new THREE.MeshBasicMaterial({ color: 0x1b2350 }));
+  barBg.position.y = 5.0;
+  const barMat = new THREE.MeshBasicMaterial({ color: C.lit });
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.1, 0.06), barMat);
+  bar.position.y = 5.0;
+  const tear = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 1.2), new THREE.MeshBasicMaterial({ color: 0x0e1430 }));
+  tear.position.set(0.2, 3.6, 0);
+  tear.rotation.z = 0.5;
+  g.add(base, post, lamp, core, cap, halo, light, ring, barBg, bar, tear);
   g.position.set(l.pos[0], l.pos[1], l.pos[2]);
-  return { g, lampMat, coreMat, light, ringMat, halo };
+  return { g, lamp, lampMat, coreMat, light, ringMat, halo, bar, barBg, barMat, tear };
+}
+export function animateLantern(v, l, T, time, camera) {
+  const fuel = l.lit ? l.fuelU / 60 : 0;
+  const low = l.lit && fuel < T.low_fuel_threshold;
+  const on = !low || time % 1 < 0.5; // nhấp nháy 1 Hz khi sắp hết dầu
+  v.lampMat.color.set(l.lit ? C.lit : C.off);
+  v.lampMat.emissiveIntensity = l.lit ? (on ? 1.6 : 0.4) : 0.6 * (l.deposited / (l.everLit ? T.relight_cost : T.lantern_cost));
+  v.coreMat.color.set(l.lit ? C.core : C.off);
+  v.light.intensity = l.lit ? (on ? 3.2 : 1.2) : 0;
+  v.ringMat.opacity = l.lit && !low ? 0.35 : 0;
+  v.halo.material.opacity = l.lit ? (on ? 0.8 : 0.3) : 0;
+  v.lamp.scale.y = l.lit ? 1 : 0.8;
+  v.tear.visible = !l.lit;
+  v.bar.visible = v.barBg.visible = l.lit;
+  v.bar.scale.x = Math.max(0.001, fuel / T.fuel_max);
+  v.bar.position.x = -0.68 * (1 - fuel / T.fuel_max);
+  v.barMat.color.set(low ? 0xff5a5f : C.lit);
+  v.bar.visible = l.lit && on;
+  v.barBg.lookAt(camera.position.x, v.g.position.y + 5, camera.position.z);
+  v.bar.quaternion.copy(v.barBg.quaternion);
 }

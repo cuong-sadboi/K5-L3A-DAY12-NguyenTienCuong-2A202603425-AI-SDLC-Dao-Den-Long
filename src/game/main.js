@@ -1,9 +1,9 @@
 // Giao diện 3D: chỉ đọc state của src/sim và gửi input; luật chơi nằm hoàn toàn trong src/sim.
 import * as THREE from 'three';
 import contract from '../../game.contract.json';
-import { createWorld, step, DT, timeLeftS, NIGHTS, surfacesAt } from '../sim/core.js';
+import { createWorld, step, DT, timeLeftS, NIGHTS, surfacesAt, capacityOf } from '../sim/core.js';
 import { buildSkyAndSea, buildIsland, MOON_DIR } from './scenery.js';
-import { makeMay, animateMay, makeShade, animateShade, makeMote, placeMote, makeLantern } from './models.js';
+import { makeMay, animateMay, makeShade, animateShade, makeMote, placeMote, makeLantern, animateLantern } from './models.js';
 import { DEMOS } from './demos.js';
 
 const T = contract.tuning;
@@ -23,7 +23,7 @@ const STORY = {
 };
 
 // ---------- Cài đặt (lưu giữa các lần mở game) ----------
-const settings = Object.assign({ volume: 0.6, sensitivity: 1 }, JSON.parse(localStorage.getItem('ddl-settings') || '{}'));
+const settings = Object.assign({ volume: 0.6, sensitivity: 1, colorblind: false }, JSON.parse(localStorage.getItem('ddl-settings') || '{}'));
 const saveSettings = () => localStorage.setItem('ddl-settings', JSON.stringify(settings));
 
 // ---------- Âm thanh (tổng hợp bằng WebAudio, không dùng file ngoài) ----------
@@ -212,12 +212,17 @@ function showSettings(back) {
   showScreen(
     `<h1>Cài đặt</h1>
      <label>Âm lượng <input id="set-vol" type="range" min="0" max="1" step="0.05" value="${settings.volume}"></label>
-     <label>Độ nhạy chuột <input id="set-sens" type="range" min="0.2" max="3" step="0.1" value="${settings.sensitivity}"></label>`,
+     <label>Độ nhạy chuột <input id="set-sens" type="range" min="0.2" max="3" step="0.1" value="${settings.sensitivity}"></label>
+     <label><input id="set-cb" type="checkbox" ${settings.colorblind ? 'checked' : ''}> Bảng màu dễ phân biệt</label>`,
     [['Lưu và quay lại', () => { mode = prevMode; back(); }]],
   );
   $('set-vol').oninput = (e) => {
     settings.volume = Number(e.target.value);
     if (master) master.gain.value = settings.volume;
+    saveSettings();
+  };
+  $('set-cb').onchange = (e) => {
+    settings.colorblind = e.target.checked;
     saveSettings();
   };
   $('set-sens').oninput = (e) => {
@@ -240,7 +245,7 @@ function onGameOver(data) {
     total += world.score;
     if (night < 3) {
       mode = 'result';
-      showScreen(`<h1>Đã thắp sáng ${NIGHTS[night].name}!</h1><p>Điểm đêm: ${world.score} · Tổng: ${total}</p>`, [
+      showScreen(`<h1>Giữ ${NIGHTS[night].name} sáng tới bình minh!</h1><p>Điểm đêm: ${world.score} · Tổng: ${total}</p>`, [
         ['Đêm tiếp theo (Enter)', () => showIntro(night + 1)],
         ['Về menu', showMenu],
       ]);
@@ -372,21 +377,15 @@ function sync(time, dt) {
 
   let lit = 0;
   for (const l of world.lanterns) {
-    const v = views.lanterns.get(l.id);
     if (l.lit) lit++;
-    v.lampMat.color.set(l.lit ? C.lit : C.off);
-    v.lampMat.emissiveIntensity = l.lit ? 1.6 : 0.6 * (l.deposited / T.lantern_cost);
-    v.coreMat.color.set(l.lit ? C.core : C.off);
-    v.light.intensity = l.lit ? 3.2 : 0;
-    v.ringMat.opacity = l.lit ? 0.35 : 0;
-    v.halo.material.opacity = l.lit ? 0.75 + 0.1 * Math.sin(time * 3) : 0;
+    animateLantern(views.lanterns.get(l.id), l, T, time, camera);
   }
   // Đom đóm bay lượn quanh điểm của nó (chỉ hiển thị; vị trí logic để nhặt vẫn là điểm chuẩn).
   syncEntities(views.motes, world.motes, makeMote, (v, m) => placeMote(v, m, time));
   syncEntities(views.shades, world.shades, makeShade, (v, s) => {
     v.g.position.set(s.pos[0], s.pos[1] + 0.12 * Math.sin(time * 2.4 + s.pos[0]), s.pos[2]);
     v.g.lookAt(p.pos[0], v.g.position.y, p.pos[2]);
-    animateShade(v, s, time);
+    animateShade(v, s, time, settings.colorblind);
   });
   syncEntities(
     views.drifters,
@@ -431,11 +430,15 @@ function sync(time, dt) {
   $('hud-flames').textContent = '●'.repeat(p.flames) + '○'.repeat(Math.max(0, T.flames - p.flames));
   const tl = Math.ceil(timeLeftS(world));
   $('hud-clock').textContent = `${String(Math.floor(tl / 60)).padStart(2, '0')}:${String(tl % 60).padStart(2, '0')}`;
+  // Ticket-03 mù màu: màu cảnh báo đổi sang trắng, kèm biểu tượng ⚠.
+  document.documentElement.style.setProperty('--danger', settings.colorblind ? '#ffffff' : '#ff5a5f');
+  if (tl <= 30 && settings.colorblind) $('hud-clock').textContent = '⚠ ' + $('hud-clock').textContent;
   $('hud-clock').classList.toggle('danger', tl <= 30);
   if (tl <= 10 && tl > 0 && tl !== lastSecond && world.state === 'playing') SFX.count();
   lastSecond = tl;
   $('hud-right').innerHTML = `Đèn <b>${lit}/${world.lanterns.length}</b><br>Điểm <b>${world.score}</b>${total ? `<br>Tổng <b>${total}</b>` : ''}`;
-  $('hud-motes').innerHTML = Array.from({ length: T.carry_capacity }, (_, i) => `<i class="${i < p.carried ? 'on' : ''}"></i>`).join('');
+  const cap = capacityOf(world);
+  $('hud-motes').innerHTML = Array.from({ length: cap }, (_, i) => `<i class="${i < p.carried ? 'on' : ''}"></i>`).join('') + `<span style="margin-left:6px">${p.carried}/${cap}</span>`;
   const dashWait = p.charmLeft > 0 ? 0 : p.dashCd / 60;
   $('cd-dash').textContent = dashWait > 0 ? `Lướt ${dashWait.toFixed(1)}s` : p.charmLeft > 0 ? 'Lướt ∞' : 'Lướt';
   $('cd-dash').className = dashWait > 0 ? 'wait' : '';
@@ -446,9 +449,12 @@ function sync(time, dt) {
   let nearD = Infinity;
   let prompt = '';
   for (const l of world.lanterns) {
-    if (l.lit) continue;
     const d = Math.hypot(l.pos[0] - p.pos[0], l.pos[2] - p.pos[2]);
-    if (d <= T.interact_radius) prompt = `E — Nạp ánh sáng (${l.deposited}/${T.lantern_cost})`;
+    if (d <= T.interact_radius) {
+      if (!l.lit) prompt = `E — Nạp ánh sáng (${l.deposited}/${l.everLit ? T.relight_cost : T.lantern_cost})`;
+      else if (l.fuelU < T.fuel_max * 60) prompt = `E — Châm dầu (${Math.floor(l.fuelU / 60)}/${T.fuel_max})`;
+    }
+    if (l.lit) continue;
     if (d < nearD) (near = l), (nearD = d);
   }
   $('prompt').textContent = prompt;
